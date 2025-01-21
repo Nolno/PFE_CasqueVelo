@@ -15,8 +15,6 @@
 #include "BluetoothSerial.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
-#include <Wire.h>
-#include <math.h>
 
 
 /******************************************************************************
@@ -88,8 +86,8 @@ void check_bt_connection(bool stat);
 void Bt_Status(esp_spp_cb_event_t event, esp_spp_cb_param_t* param); /**< Callback function for Bluetooth status */
 
 //############################ SD CARD     ###################################
-void data_logging(); /**< Function to log data */
-void alarm_system(float[]); /**<Function to start the alarm system*/
+void data_logging(float (&acc)[3], float (&acc_slave)[3]); /**< Function to log data */
+void alarm_system(float (&acc)[3], float (&acc_slave)[3]); /**<Function to start the alarm system*/
 
 
 /******************************************************************************
@@ -148,14 +146,6 @@ char buffer_linear[MAX_BUFFER_SIZE];
 //############################ SD CARD     ###################################
 File myFile; /**< File object for SD card */
 int i = 0; /**< Counter variable */
-
-// Déclaration des variables contenant les valeurs reçus.
-float acc_X_received;
-float acc_Y_received;
-float acc_Z_received;
-float acc_X_sensor;
-float acc_Y_sensor;
-float acc_Z_sensor;
 
 // Déclaration des variables contenant la différence entre les angles (pitch et yaw) mesurés et reçus.
 float initial_diff_Y;
@@ -265,7 +255,32 @@ void setup()
     mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
 }
 
-void getAcc(float(&acc)[3]);
+/**
+ * @brief
+ *  Récupère les valeurs de l'accélération du MPU de master
+ * @param acc
+ *  Tableau contenant les valeurs de l'accélération de master [x, y, z]
+ */
+void getAcc(float (&acc)[3]);
+
+/**
+ * @brief
+ *  Récupère les valeurs de l'orientation du MPU de master
+ * @param gyro
+ *  Tableau contenant les valeurs de l'orientation de master [x, y, z]
+ */
+void getGyro(float (&gyro)[3]);
+
+/**
+ * @brief
+ *  Récupère les valeurs de l'accélération et de l'orientation du MPU de slave via Bluetooth
+ * @param acc_slave
+ *  Tableau contenant les valeurs de l'accélération de slave [x, y, z]
+ * @param gyro_slave
+ *  Tableau contenant les valeurs de l'orientation de slave [x, y, z]
+ */
+void getSlaveData(float (&acc_slave)[3], float (&gyro_slave)[3]);
+
 
 void loop()
 {
@@ -304,8 +319,10 @@ void loop()
     // sprintf(buffer_hall, ",%s,%s", buffer_angular, buffer_linear);
     // strcpy(message_hall, buffer_hall);
     // Serial.println(message_hall);
-    float acc[3]; // Tableau contenant les valeurs de l'accélération de master
-    float gyro[3]; // Tableau contenant les valeurs de l'orientation de master
+    float acc[3]; // Tableau contenant les valeurs de l'accélération de master [x, y, z]
+    float gyro[3]; // Tableau contenant les valeurs de l'orientation de master [x, y, z]
+    float acc_slave[3]; // Tableau contenant les valeurs de l'accélération de slave [x, y, z]
+    float gyro_slave[3]; // Tableau contenant les valeurs de l'orientation de slave [x, y, z]
     // Bluetooth - MPU routine
     if (!SlaveConnected)
     {
@@ -326,54 +343,18 @@ void loop()
         }
     }
 
-    // Get new sensor events with the readings
-    sensors_event_t a, g, temp;
-
     if (SerialBT.available())
-    {
-        if (mpu.getEvent(&a, &g, &temp))
-        {
-            getAcc(acc);
-            // snprintf(buffer_acceleration_X, sizeof(buffer_acceleration_X), "%f", a.acceleration.x);
-            // snprintf(buffer_acceleration_Y, sizeof(buffer_acceleration_Y), "%f", a.acceleration.y);
-            // snprintf(buffer_acceleration_Z, sizeof(buffer_acceleration_Z), "%f", a.acceleration.z);
-            // snprintf(buffer_gyro_X, sizeof(buffer_gyro_X), "%f", g.gyro.x);
-            // snprintf(buffer_gyro_Y, sizeof(buffer_gyro_Y), "%f", g.gyro.y);
-            // snprintf(buffer_gyro_Z, sizeof(buffer_gyro_Z), "%f", g.gyro.z);
-            // acc_X_sensor = a.acceleration.x;
-            // acc_Y_sensor = a.acceleration.y;
-            // acc_Z_sensor = a.acceleration.z;
-            // sprintf(buffer, ",%s,%s,%s,%s,%s,%s", buffer_acceleration_X, buffer_acceleration_Y, buffer_acceleration_Z,
-            //         buffer_gyro_X, buffer_gyro_Y, buffer_gyro_Z);
-            // strcat(message, buffer);
-            SerialBT.write('A');
-        }
+    { // Si des données sont disponibles
+        getAcc(acc);
+        getGyro(gyro);
         // Serial.write(SerialBT.read());
-        alarm_system(acc);
+        getSlaveData(acc_slave, gyro_slave);
+        alarm_system(acc, acc_slave);
         // data_logging();
-
-        //  Reset for next batch
-        // memset(message, 0, sizeof(message));
-        // memset(buffer, 0, sizeof(buffer));
-        // memset(buffer_acceleration_X, 0, sizeof(buffer_acceleration_X));
-        // memset(buffer_acceleration_Y, 0, sizeof(buffer_acceleration_Y));
-        // memset(buffer_acceleration_Z, 0, sizeof(buffer_acceleration_Z));
-        // memset(buffer_gyro_X, 0, sizeof(buffer_gyro_X));
-        // memset(buffer_gyro_Y, 0, sizeof(buffer_gyro_Y));
-        // memset(buffer_gyro_Z, 0, sizeof(buffer_gyro_Z));
-        // memset(buffer_angular, 0, sizeof(buffer_angular));
-        // memset(buffer_linear, 0, sizeof(buffer_linear));
-        // memset(buffer_hall, 0, sizeof(buffer_hall));
-        // memset(message_hall, 0, sizeof(message_hall));
     }
 }
 
-/**
- * @brief
- *  Récupère les valeurs de l'accélération du MPU de master
- * @param acc
- *  Tableau contenant les valeurs de l'accélération de master
- */
+
 void getAcc(float (&acc)[3])
 {
     sensors_event_t a, g, temp;
@@ -383,6 +364,68 @@ void getAcc(float (&acc)[3])
         acc[1] = a.acceleration.y;
         acc[2] = a.acceleration.z;
     }
+    else
+    {
+        acc[0] = 0;
+        acc[1] = 0;
+        acc[2] = 0;
+    }
+}
+
+void getGyro(float (&gyro)[3])
+{
+    sensors_event_t a, g, temp;
+    if (mpu.getEvent(&a, &g, &temp))
+    {
+        gyro[0] = g.gyro.x;
+        gyro[1] = g.gyro.y;
+        gyro[2] = g.gyro.z;
+    }
+    else
+    {
+        gyro[0] = 0;
+        gyro[1] = 0;
+        gyro[2] = 0;
+    }
+}
+
+void getSlaveData(float (&acc_slave)[3], float (&gyro_slave)[3])
+{
+    bufferIndex = 0; // Réinitialiser l'index avant lecture
+    memset(receivedBuffer, 0, sizeof(receivedBuffer)); // Effacer le buffer
+
+    while (SerialBT.available())
+    {
+        receivedChar2 = SerialBT.read();
+        if (receivedChar2 == '!')
+        {
+            receivedBuffer[bufferIndex] = '\0'; // Terminer la chaîne
+            break;
+        }
+        if (bufferIndex < sizeof(receivedBuffer) - 1) // Vérifier les limites du tableau
+        {
+            receivedBuffer[bufferIndex] = receivedChar2; // Stocker le caractère
+            bufferIndex++;
+        }
+        else
+        {
+            Serial.println("Buffer overflow detected!"); // Détection de dépassement
+            break;
+        }
+    }
+    token = strtok(receivedBuffer, t);
+    acc_slave[0] = atoff(token);
+    token = strtok(nullptr, t);
+    acc_slave[1] = atoff(token);
+    token = strtok(nullptr, t);
+    acc_slave[2] = atoff(token);
+    token = strtok(nullptr, t);
+    gyro_slave[0] = atoff(token);
+    token = strtok(nullptr, t);
+    gyro_slave[1] = atoff(token);
+    token = strtok(nullptr, t);
+    gyro_slave[2] = atoff(token);
+    SerialBT.write('A');
 }
 
 
@@ -409,36 +452,47 @@ void SlaveConnect()
     SerialBT.connect(address);
 }
 
-void data_logging()
+void data_logging(float (&acc)[3], float (&acc_slave)[3])
 {
     myFile = SD.open("/example.csv", FILE_APPEND);
 
     if (myFile)
     {
         Serial.println("File opened successfully.");
-
-        while (SerialBT.available())
-        {
-            Serial.println("B");
-            char receivedChar = SerialBT.read(); //reads "%s,%s,%s,%s,%s,%s!"
-
-            Serial.print(receivedChar);
-
-            if (receivedChar != '!')
-            {
-                myFile.print(receivedChar);
-            }
-            else
-            {
-                myFile.print(message);
-                myFile.print(message_hall);
-                myFile.println();
-                break;
-            }
-        }
+        // Schema d'une ligne du fichier CSV : master_ax,master_ay,master_az,slave_ax,slave_ay,slave_az
+        myFile.print(acc[0]);
+        myFile.print(",");
+        myFile.print(acc[1]);
+        myFile.print(",");
+        myFile.print(acc[2]);
+        myFile.print(",");
+        myFile.print(acc_slave[0]);
+        myFile.print(",");
+        myFile.print(acc_slave[1]);
+        myFile.print(",");
+        myFile.print(acc_slave[2]);
+        myFile.println();
+        // while (SerialBT.available())
+        // {
+        //     Serial.println("B");
+        //     char receivedChar = SerialBT.read(); //reads "%s,%s,%s,%s,%s,%s!"
+        //
+        //     Serial.print(receivedChar);
+        //
+        //     if (receivedChar != '!')
+        //     {
+        //         myFile.print(receivedChar);
+        //     }
+        //     else
+        //     {
+        //         myFile.print(message);
+        //         myFile.print(message_hall);
+        //         myFile.println();
+        //         break;
+        //     }
+        // }
         myFile.close();
         Serial.println("File closed.");
-        SerialBT.write('A');
     }
     else
     {
@@ -446,58 +500,11 @@ void data_logging()
     }
 }
 
-void alarm_system(float acc[3])
+void alarm_system(float (&acc)[3], float (&acc_slave)[3])
 {
-    bufferIndex = 0; // Réinitialiser l'index avant lecture
-    memset(receivedBuffer, 0, sizeof(receivedBuffer)); // Effacer le buffer
-
-    while (SerialBT.available())
-    {
-        Serial.println("C");
-        receivedChar2 = SerialBT.read();
-        if (receivedChar2 == '!')
-        {
-            receivedBuffer[bufferIndex] = '\0'; // Terminer la chaîne
-            break;
-        }
-        else if (bufferIndex < sizeof(receivedBuffer) - 1) // Vérifier les limites du tableau
-        {
-            receivedBuffer[bufferIndex] = receivedChar2; // Stocker le caractère
-            bufferIndex++;
-        }
-        else
-        {
-            Serial.println("Buffer overflow detected!"); // Détection de dépassement
-            break;
-        }
-    }
-
-    // while (SerialBT.available())
-    // {
-    //     Serial.println("D");
-    //     receivedChar2 = SerialBT.read();
-    //     if (receivedChar2 == '!') // Check for end of line character to indicate end of string
-    //     {
-    //         receivedBuffer[bufferIndex] = '\0'; //  Null-terminate the string
-    //         break;
-    //     }
-    //     else
-    //     {
-    //         receivedBuffer[bufferIndex] = receivedChar2; // Store the character in the buffer
-    //         bufferIndex++;
-    //     }
-    // }
-    // we have one package of data
-    token = strtok(receivedBuffer, t);
-    acc_X_received = atoff(token);
-    token = strtok(NULL, t);
-    acc_Y_received = atoff(token);
-    token = strtok(NULL, t);
-    acc_Z_received = atoff(token);
-    // Calcul de la différence
-    diff_acc_X = acc[0] - acc_X_received;
-    diff_acc_Y = acc[1] - acc_Y_received;
-    diff_acc_Z = acc[2] - acc_Z_received;
+    diff_acc_X = acc[0] - acc_slave[0];
+    diff_acc_Y = acc[1] - acc_slave[1];
+    diff_acc_Z = acc[2] - -acc_slave[2];
     if (initial_diff_Y == 0)
         initial_diff_Y = diff_acc_Y;
     if (initial_diff_Z == 0)
