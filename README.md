@@ -5,7 +5,10 @@ Super projet où font qu'on arrive à faire un casque de vélo connecté qui per
 On les préviens ensuite avec une alerte sonore ou visuelle.
 
 # Membres
-Sahah 🌞​
-Camille 😎​
-Antoine 🗿​
+Sahah 🌞​  
+
+Camille 😎​  
+
+Antoine 🗿​  
+
 Nolan 🫠
