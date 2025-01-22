@@ -65,8 +65,10 @@ Adafruit_MPU6050 mpu;
  *
  */
 #define CS_PIN 5 /**< Chip select pin for SD card */
-#define PIN_LED_LEFT_L2 33
 #define PIN_BUZZER 2
+
+#define PIN_LED 33 // Pin connected to the LED
+
 
 /******************************************************************************
  *                         LOCAL FUNCTION PROTOTYPES                          *
@@ -119,7 +121,7 @@ uint8_t j = 0;
  * @brief BLUETOOTH SETUP
  *
  */
-const long interval = 1000;
+const long interval = 100;
 int ledState = LOW;
 unsigned long previousMillisLED = 0;
 unsigned long previousMillisReconnect; /**< Variable used for comparing millis counter for the reconnection timer */
@@ -199,7 +201,7 @@ void setup()
      */
 
     pinMode(CS_PIN, OUTPUT);
-    pinMode(PIN_LED_LEFT_L2, OUTPUT);
+    pinMode(PIN_LED, OUTPUT);
     pinMode(PIN_BUZZER, OUTPUT);
 
     Serial.print("Initializing SD card... ");
@@ -344,7 +346,8 @@ void loop()
     }
 
     if (SerialBT.available())
-    { // Si des données sont disponibles
+    {
+        // Si des données sont disponibles
         getAcc(acc);
         getGyro(gyro);
         // Serial.write(SerialBT.read());
@@ -504,7 +507,7 @@ void alarm_system(float (&acc)[3], float (&acc_slave)[3])
 {
     diff_acc_X = acc[0] - acc_slave[0];
     diff_acc_Y = acc[1] - acc_slave[1];
-    diff_acc_Z = acc[2] - -acc_slave[2];
+    diff_acc_Z = acc[2] - acc_slave[2];
     if (initial_diff_Y == 0)
         initial_diff_Y = diff_acc_Y;
     if (initial_diff_Z == 0)
@@ -523,14 +526,30 @@ void alarm_system(float (&acc)[3], float (&acc_slave)[3])
     Serial.print(diff_acc_Z);
     Serial.print(" Diff acc Z INIT :  ");
     Serial.print(initial_diff_Z);
+    Serial.println();
 
     if ((abs(diff_acc_Z) - abs(initial_diff_Z)) > 0.7)
+    {
         cpt_second = true;
+        Serial.println("ZZZZ");
+    }
     else
     {
         cpt_second = false;
-        digitalWrite(PIN_LED_LEFT_L2, LOW);
-        noTone(PIN_BUZZER);
+        digitalWrite(PIN_LED, LOW);
+        // noTone(PIN_BUZZER);
+    }
+
+    if ((abs(diff_acc_Y) - abs(initial_diff_Y)) > 0.7)
+    {
+        cpt_second = true;
+        Serial.println("YYYY");
+    }
+    else
+    {
+        cpt_second = false;
+        digitalWrite(PIN_LED, LOW);
+        // noTone(PIN_BUZZER);
     }
 
     // Activation de l'alarme
@@ -545,17 +564,18 @@ void alarm_system(float (&acc)[3], float (&acc_slave)[3])
             if (ledState == LOW)
             {
                 ledState = HIGH;
+                Serial.println("LED ON");
             }
             else
             {
                 ledState = LOW;
+                Serial.println("LED OFF");
             }
 
             // set the LED with the ledState of the variable:
-            digitalWrite(PIN_LED_LEFT_L2, ledState);
+            digitalWrite(PIN_LED, ledState);
         }
-        tone(PIN_BUZZER, 500);
-
+        // tone(PIN_BUZZER, 500);
         cpt_second = false;
     }
     bufferIndex = 0;

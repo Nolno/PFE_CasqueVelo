@@ -55,6 +55,7 @@ char buffer_gyro_Y[MAX_BUFFER_SIZE];
 char buffer_gyro_Z[MAX_BUFFER_SIZE];
 bool ack_received = true;
 int i = 0;
+int last_ack = 0;
 
 void setup(void)
 {
@@ -85,6 +86,7 @@ void setup(void)
   {
     Serial.println("Waiting for connection...");
   }
+  ack_received = true;
   while (i < 6)
   {
     Serial.print(address[i], HEX);
@@ -145,11 +147,16 @@ void loop()
       sample_count = 0;
     }
 
+    if (millis() - last_ack > 1000) {
+      ack_received = true;
+    }
+
     // Vérifier si un ACK est reçu
     if (SerialBT.available()) {
       char ack = SerialBT.read(); // Lire un caractère depuis le buffer
       if (ack == 'A') {           // 'A' représente un accusé de réception
         ack_received = true;
+        last_ack = millis();
       }
     }
   }
