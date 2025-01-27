@@ -152,6 +152,7 @@ int i = 0; /**< Counter variable */
 // Déclaration des variables contenant la différence entre les angles (pitch et yaw) mesurés et reçus.
 float initial_diff_Y;
 float initial_diff_Z;
+float initial_diff_X;
 float diff_acc_X;
 float diff_acc_Y;
 float diff_acc_Z;
@@ -252,7 +253,7 @@ void setup()
     }
 
     Serial.println("MPU6050 Found!");
-    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+    mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
     mpu.setGyroRange(MPU6050_RANGE_500_DEG);
     mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
 }
@@ -512,38 +513,44 @@ void alarm_system(float (&acc)[3], float (&acc_slave)[3])
         initial_diff_Y = diff_acc_Y;
     if (initial_diff_Z == 0)
         initial_diff_Z = diff_acc_Z;
-    /*Serial.print("ACC X RECEIVED: ");
-    Serial.print(acc_X_received);
-    Serial.print(" ACC Y RECEIVED:");
-    Serial.println(acc_Y_received);
-    Serial.print(" ACC Z RECEIVED: ");
-    Serial.print(acc_Z_received);
-    Serial.println("Diff acc X : ");
+    if (initial_diff_X == 0)
+        initial_diff_X = diff_acc_X;
+
+    Serial.print("ACC RECEIVED: X = ");
+    Serial.print(acc_slave[0]);
+    Serial.print(" Y = ");
+    Serial.print(acc_slave[1]);
+    Serial.print(" Z = ");
+    Serial.println(acc_slave[2]);
+    Serial.print("Diff acc : X = ");
     Serial.print(diff_acc_X);
-    Serial.print(" Diff acc Y : ");
-    Serial.print(diff_acc_Y);*/
-    Serial.print(" Diff acc Z :  ");
-    Serial.print(diff_acc_Z);
-    Serial.print(" Diff acc Z INIT :  ");
-    Serial.print(initial_diff_Z);
+    Serial.print(" Y = ");
+    Serial.print(diff_acc_Y);
+    Serial.print(" Z = ");
+    Serial.println(diff_acc_Z);
+    Serial.print("Diff acc INIT: X = ");
+    Serial.print(initial_diff_X);
+    Serial.print(" Y = ");
+    Serial.print(initial_diff_Y);
+    Serial.print(" Z = ");
+    Serial.println(initial_diff_Z);
     Serial.println();
 
-    if ((abs(diff_acc_Z) - abs(initial_diff_Z)) > 0.7)
+    if ((abs(diff_acc_Z) - abs(initial_diff_Z ) > 0.7) || (abs(diff_acc_Y) - abs(initial_diff_Y) > 0.7)|| (abs(diff_acc_X) - abs(initial_diff_X) > 0.7))
     {
         cpt_second = true;
-        Serial.println("ZZZZ");
-    }
-    else
-    {
-        cpt_second = false;
-        digitalWrite(PIN_LED, LOW);
-        // noTone(PIN_BUZZER);
-    }
-
-    if ((abs(diff_acc_Y) - abs(initial_diff_Y)) > 0.7)
-    {
-        cpt_second = true;
-        Serial.println("YYYY");
+        if ((abs(diff_acc_Z) - abs(initial_diff_Z ) > 0.7))
+        {
+            Serial.println("ZZZZ");
+        }
+        if ((abs(diff_acc_Y) - abs(initial_diff_Y) > 0.7))
+        {
+            Serial.println("YYYY");
+        }
+        if ((abs(diff_acc_X) - abs(initial_diff_X) > 0.7))
+        {
+            Serial.println("XXXX");
+        }
     }
     else
     {
