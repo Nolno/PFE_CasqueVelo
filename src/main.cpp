@@ -15,6 +15,9 @@
 #include "BluetoothSerial.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <math.h>
+
 
 
 /******************************************************************************
@@ -458,7 +461,7 @@ void SlaveConnect()
 
 void data_logging(float (&acc)[3], float (&acc_slave)[3])
 {
-    myFile = SD.open("/example.csv", FILE_APPEND);
+    myFile = SD.open("/example.csv", FILE_WRITE);
 
     if (myFile)
     {
