@@ -3,6 +3,10 @@
 
 #include <Arduino.h>
 
+/**
+ * @brief Classe pour gérer un tachymètre. Le tachymètre mesure la vitesse du véhicule en fonction des impulsions d'un capteur de vitesse.
+ * Une impulsion est générée à chaque tour de roue complet, quand un aimant passe devant un capteur à effet Hall.
+ */
 class Tachymeter {
 public:
     /**

@@ -5,6 +5,7 @@
  #include <Adafruit_Sensor.h>
  #include <Wire.h>
  #include <math.h>
+ #include "Tachymeter.h"
 
 
 int pulse_counter = 0;
@@ -20,6 +21,7 @@ unsigned long previousMillis = 0;
  *
 */
 void IRAM_ATTR pulse_event();
+
 
 void setup() {
     Serial.begin(115200);
