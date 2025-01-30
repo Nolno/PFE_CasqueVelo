@@ -13,13 +13,9 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "BluetoothSerial.h"
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
+#include "MPU.h"
 #include "Tachymeter.h"
-#include "MPU6050_6Axis_MotionApps20.h"
 #include <Wire.h>
-#include <math.h>
-
 
 
 /******************************************************************************
@@ -75,36 +71,14 @@ void Bt_Status(esp_spp_cb_event_t event, esp_spp_cb_param_t* param); /**< Callba
 void data_logging(float (&acc)[3], float (&acc_slave)[3]); /**< Function to log data */
 void alarm_system(float (&ypr)[3], float (&ypr_slave)[3]); /**< Function to start the alarm system*/
 
-//############################ MPU  SENSOR ###################################
-/*------Interrupt detection routine------*/
-volatile bool MPUInterrupt = false;     // Indicates whether MPU6050 interrupt pin has gone high
-void DMPDataReady() {
-    MPUInterrupt = true;
-}
-
-
 /******************************************************************************
  *                             GLOBAL VARIABLES                             *
  ******************************************************************************/
 //############################ MPU  SENSOR ###################################
-MPU6050 mpu;
-/*---MPU6050 Control/Status Variables---*/
-bool DMPReady = false;  // Set true if DMP init was successful
-uint8_t MPUIntStatus;   // Holds actual interrupt status byte from MPU
-uint8_t devStatus;      // Return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // Expected DMP packet size (default is 42 bytes)
-uint8_t FIFOBuffer[64]; // FIFO storage buffer
+MPU mpu(INTERRUPT_PIN);
 
-/*---Orientation/Motion Variables---*/
-Quaternion q;           // [w, x, y, z]         Quaternion container
-VectorInt16 aa;         // [x, y, z]            Accel sensor measurements
-VectorInt16 gy;         // [x, y, z]            Gyro sensor measurements
-VectorInt16 aaReal;     // [x, y, z]            Gravity-free accel sensor measurements
-VectorInt16 aaWorld;    // [x, y, z]            World-frame accel sensor measurements
-VectorFloat gravity;    // [x, y, z]            Gravity vector
-float euler[3];         // [psi, theta, phi]    Euler angle container
-float ypr[3];           // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector
-float ypr_slave[3];     // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector for slave
+float ypr[3]; // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector
+float ypr_slave[3]; // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector for slave
 
 //############################ BLUETOOTH ###################################
 const long interval = 100;
@@ -170,59 +144,8 @@ void setup()
     SlaveConnect(); // Connect to the CLIENT(Slave)
     //############################ MPU  Setup ###################################
     mpu.initialize();
-    pinMode(INTERRUPT_PIN, INPUT);
-    /*Verify connection*/
-    Serial.println(F("Testing MPU6050 connection..."));
-    if(mpu.testConnection() == false){
-        Serial.println("MPU6050 connection failed");
-        while(true);
-    }
-    Serial.println("MPU6050 connection successful");
-    //############################ DMP  Setup ###################################
-    /* Initializate and configure the DMP*/
-    Serial.println(F("Initializing DMP..."));
-    devStatus = mpu.dmpInitialize();
-
-    /* Supply your gyro offsets here, scaled for min sensitivity */
-    mpu.setXGyroOffset(0);
-    mpu.setYGyroOffset(0);
-    mpu.setZGyroOffset(0);
-    mpu.setXAccelOffset(0);
-    mpu.setYAccelOffset(0);
-    mpu.setZAccelOffset(0);
-
-    /* Making sure it worked (returns 0 if so) */
-    if (devStatus == 0) {
-        constexpr int loops = 100;
-        mpu.CalibrateAccel(loops);  // Calibration Time: generate offsets and calibrate our MPU6050
-        mpu.CalibrateGyro(loops);
-        Serial.println("These are the Active offsets: ");
-        mpu.PrintActiveOffsets();
-        Serial.println(F("Enabling DMP..."));   //Turning ON DMP
-        mpu.setDMPEnabled(true);
-
-        /*Enable Arduino interrupt detection*/
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
-        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), DMPDataReady, RISING);
-        MPUIntStatus = mpu.getIntStatus();
-
-        /* Set the DMP Ready flag so the main loop() function knows it is okay to use it */
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
-        DMPReady = true;
-        packetSize = mpu.dmpGetFIFOPacketSize(); //Get expected DMP packet size for later comparison
-    }
-    else {
-        Serial.print(F("DMP Initialization failed (code ")); //Print the error code
-        Serial.print(devStatus);
-        Serial.println(F(")"));
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-    }
     pinMode(A5, OUTPUT);
     Serial.println("time,yaw,pitch,roll");
-    temps = millis();
     //############################ SD CARD Setup ###################################
     pinMode(CS_PIN, OUTPUT);
 
@@ -271,8 +194,8 @@ void getSlaveData(float (&ypr_slave)[3]);
 
 void loop()
 {
-    if (!DMPReady) return; // Stop the program if DMP programming fails.
-
+    // MPU routine
+    mpu.update();
     // Tachymeter routine
     tachymeter.update();
 
@@ -303,33 +226,25 @@ void loop()
 
     if (SerialBT.available())
     {
-        /* Read a packet from FIFO */
-        if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet
+        mpu.getAveragedYPR(ypr);
+        // Serial.print("ypr\t");
+        Serial.print(millis() - temps);
+        Serial.print(",");
+        Serial.print(ypr[0] * 180 / M_PI);
+        Serial.print(",");
+        Serial.print(ypr[1] * 180 / M_PI);
+        Serial.print(",");
+        Serial.println(ypr[2] * 180 / M_PI);
+        getSlaveData(ypr_slave);
+        Serial.print("slave :");
+        Serial.print(ypr_slave[0] * 180 / M_PI);
+        Serial.print(",");
+        Serial.print(ypr_slave[1] * 180 / M_PI);
+        Serial.print(",");
+        Serial.println(ypr_slave[2] * 180 / M_PI);
 
-            /* Display Euler angles in degrees */
-            mpu.dmpGetQuaternion(&q, FIFOBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            // applyRotationCorrection(q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            // Serial.print("ypr\t");
-            Serial.print(millis()-temps);
-            Serial.print(",");
-            Serial.print(ypr[0] * 180/M_PI);
-            Serial.print(",");
-            Serial.print(ypr[1] * 180/M_PI);
-            Serial.print(",");
-            Serial.println(ypr[2] * 180/M_PI);
-            getSlaveData(ypr_slave);
-            Serial.print("slave :");
-            Serial.print(ypr_slave[0] * 180/M_PI);
-            Serial.print(",");
-            Serial.print(ypr_slave[1] * 180/M_PI);
-            Serial.print(",");
-            Serial.println(ypr_slave[2] * 180/M_PI);
-
-            // alarm_system(ypr, ypr_slave);
-            // data_logging();
-        }
+        // alarm_system(ypr, ypr_slave);
+        // data_logging();
     }
 }
 
@@ -385,7 +300,7 @@ void Bt_Status(esp_spp_cb_event_t event, esp_spp_cb_param_t* param)
 }
 
 void SlaveConnect()
-    {
+{
     Serial.println("Function BT connection executed");
     Serial.printf("Connecting to slave BT device named \"%s\" and MAC address \"%s\" is started.\n", slaveName.c_str(),
                   MACadd.c_str());
@@ -453,15 +368,22 @@ void alarm_system(float (&ypr)[3], float (&ypr_slave)[3])
     Serial.println(initial_diff_roll);
     Serial.println();
 
-    if ((abs(diff_roll) - abs(initial_diff_roll ) > 0.7) || (abs(diff_pitch) - abs(initial_diff_pitch) > 0.7)|| (abs(diff_yaw) - abs(initial_diff_yaw) > 0.7))
+    if ((abs(diff_roll) - abs(initial_diff_roll) > 0.7) || (abs(diff_pitch) - abs(initial_diff_pitch) > 0.7) || (
+        abs(diff_yaw) - abs(initial_diff_yaw) > 0.7))
     {
         cpt_second = true;
-        if ((abs(diff_roll) - abs(initial_diff_roll ) > 0.7))
-        {Serial.println("yaw");}
+        if ((abs(diff_roll) - abs(initial_diff_roll) > 0.7))
+        {
+            Serial.println("yaw");
+        }
         if ((abs(diff_pitch) - abs(initial_diff_pitch) > 0.7))
-        {Serial.println("pitch");}
+        {
+            Serial.println("pitch");
+        }
         if ((abs(diff_yaw) - abs(initial_diff_yaw) > 0.7))
-        {Serial.println("roll");}
+        {
+            Serial.println("roll");
+        }
     }
     else
     {

@@ -1,68 +1,58 @@
-//
-// Created by Antoine on 29/01/2025.
-//
-
 #include "MPU.h"
+
+volatile bool MPU::MPUInterrupt = false;
 
 MPU::MPU(int interruptPin) : INTERRUPT_PIN(interruptPin), buffer_index(0), buffer_full(false) {}
 
 void MPU::initialize() {
-    Wire.begin();
     mpu.initialize();
     pinMode(INTERRUPT_PIN, INPUT);
-    /*Verify connection*/
     Serial.println(F("Testing MPU6050 connection..."));
     if (mpu.testConnection() == false) {
         Serial.println("MPU6050 connection failed");
         while (true);
     }
     Serial.println("MPU6050 connection successful");
-    //############################ DMP  Setup ###################################
-    /* Initializate and configure the DMP*/
     Serial.println(F("Initializing DMP..."));
     devStatus = mpu.dmpInitialize();
-
-    /* Supply your gyro offsets here, scaled for min sensitivity */
     mpu.setXGyroOffset(0);
     mpu.setYGyroOffset(0);
     mpu.setZGyroOffset(0);
     mpu.setXAccelOffset(0);
     mpu.setYAccelOffset(0);
     mpu.setZAccelOffset(0);
-
-    /* Making sure it worked (returns 0 if so) */
     if (devStatus == 0) {
         constexpr int loops = 100;
-        mpu.CalibrateAccel(loops);  // Calibration Time: generate offsets and calibrate our MPU6050
+        mpu.CalibrateAccel(loops);
         mpu.CalibrateGyro(loops);
         Serial.println("These are the Active offsets: ");
         mpu.PrintActiveOffsets();
-        Serial.println(F("Enabling DMP..."));   //Turning ON DMP
+        Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
-    }
-    else {
-        Serial.print(F("DMP Initialization failed (code ")); //Print the error code
+        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+        Serial.println(F(")..."));
+        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), DMPDataReady, RISING);
+        MPUIntStatus = mpu.getIntStatus();
+        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        DMPReady = true;
+        packetSize = mpu.dmpGetFIFOPacketSize();
+    } else {
+        Serial.print(F("DMP Initialization failed (code "));
         Serial.print(devStatus);
         Serial.println(F(")"));
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
     }
     pinMode(A5, OUTPUT);
     Serial.println("time,yaw,pitch,roll");
     temps = millis();
-
-    // On attend que le buffer se remplisse
     while (!buffer_full) {
         update();
     }
 }
 
 void MPU::update() {
-    if (!DMPReady) return; // Stop the program if DMP programming fails.
-
-    /* Read a packet from FIFO */
-    if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet
-        /* Display Euler angles in degrees */
+    if (!DMPReady) return;
+    if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
         mpu.dmpGetQuaternion(&q, FIFOBuffer);
         mpu.dmpGetGravity(&gravity, &q);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
@@ -95,19 +85,17 @@ void MPU::addSample(float new_yaw, float new_pitch, float new_roll) {
     yaw_buffer[buffer_index] = new_yaw;
     pitch_buffer[buffer_index] = new_pitch;
     roll_buffer[buffer_index] = new_roll;
-
-    buffer_index = (buffer_index + 1) % BUFFER_SIZE; // Tourne en boucle
-    if (buffer_index == 0) buffer_full = true;  // Après 100 valeurs, on est plein
+    buffer_index = (buffer_index + 1) % BUFFER_SIZE;
+    if (buffer_index == 0) buffer_full = true;
 }
 
-void MPU::getAveragedYPR(float &avg_yaw, float &avg_pitch, float &avg_roll) {
+void MPU::getAveragedYPR(float& avg_yaw, float& avg_pitch, float& avg_roll) {
     if (!buffer_full) {
         avg_yaw = 0;
         avg_pitch = 0;
         avg_roll = 0;
         return;
     }
-
     float sum_yaw = 0;
     float sum_pitch = 0;
     float sum_roll = 0;
@@ -116,8 +104,19 @@ void MPU::getAveragedYPR(float &avg_yaw, float &avg_pitch, float &avg_roll) {
         sum_pitch += pitch_buffer[i];
         sum_roll += roll_buffer[i];
     }
-
     avg_yaw = sum_yaw / BUFFER_SIZE;
     avg_pitch = sum_pitch / BUFFER_SIZE;
     avg_roll = sum_roll / BUFFER_SIZE;
+}
+
+void MPU::getAveragedYPR(float (&ypr)[3]) {
+    float avg_yaw, avg_pitch, avg_roll;
+    getAveragedYPR(avg_yaw, avg_pitch, avg_roll);
+    ypr[0] = avg_yaw;
+    ypr[1] = avg_pitch;
+    ypr[2] = avg_roll;
+}
+
+void MPU::DMPDataReady() {
+    MPUInterrupt = true;
 }

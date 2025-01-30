@@ -4,7 +4,7 @@
 
 #ifndef MPU_H
 #define MPU_H
-#define BUFFER_SIZE 100
+#define BUFFER_SIZE 50
 
 #include <Arduino.h>
 #include "MPU6050_6Axis_MotionApps20.h"
@@ -33,12 +33,20 @@ private:
   uint8_t MPUIntStatus; /**< Contient le byte de statut d'interruption réel du MPU */
   int const INTERRUPT_PIN; /**< Définit la broche d'interruption #0 */
   unsigned long temps; /**< Temps actuel en millisecondes */
+  /*------Interrupt detection routine------*/
+  static volatile bool MPUInterrupt;     // Indicates whether MPU6050 interrupt pin has gone high
+  static void DMPDataReady();
+
+  /**
+  * @brief Méthode pour ajouter un échantillon dans le buffer utilisé pour le calcul de la moyenne.
+  */
+  void addSample(float new_yaw, float new_pitch, float new_roll);
 
 public:
   /**
   * @brief Constructeur de la classe MPU.
   */
-  MPU(int interruptPin);
+  explicit MPU(int interruptPin);
 
   /**
   * @brief Méthode pour initialiser le MPU6050 et le DMP.
@@ -71,16 +79,19 @@ public:
   void getYPR(float (&ypr)[3]);
 
   /**
-  * @brief Méthode pour ajouter un échantillon dans les buffers.
-  */
-  void addSample(float new_yaw, float new_pitch, float new_roll);
-
-  /**
   * @brief Méthode pour obtenir les valeurs moyennes des angles d'orientation.
+  * @param avg_yaw Valeur moyenne de l'angle de lacet.
+  * @param avg_pitch Valeur moyenne de l'angle de tangage.
+  * @param avg_roll Valeur moyenne de l'angle de roulis.
   */
   void getAveragedYPR(float &avg_yaw, float &avg_pitch, float &avg_roll);
 
-  void DMPDataReady();
+  /**
+   * @brief Méthode pour obtenir les valeurs moyennes des angles d'orientation.
+   * @param ypr Tableau contenant les valeurs des angles d'orientation [yaw, pitch, roll]
+   */
+  void getAveragedYPR(float (&ypr)[3]);
+
 
 };
 
