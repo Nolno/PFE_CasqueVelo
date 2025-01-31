@@ -421,3 +421,22 @@ void alarm_system(float (&ypr)[3], float (&ypr_slave)[3])
     bufferIndex = 0;
     memset(receivedBuffer, 0, sizeof(receivedBuffer));
 }
+
+std::pair<double, double> calculerLimites(double v_kmh, double A_max, double T_max, double k, double k_prime) {
+
+
+    angle_limits = (A_max * std::exp(-k * v_kmh));
+    temps_limits = (T_max * std::exp(-k_prime * v_kmh));
+
+    return {angle_limits, temps_limits};
+}
+
+boolean depasserLimites(double angle, double temps, double v_kmh, double A_max, double T_max, double k, double k_prime){
+    angle_limits, temps_limits = calculerLimites(double v_kmh, double A_max, double T_max, double k, double k_prime);
+    if( angle>=angle_limits && temps>=temps_limits){
+        return true;
+    } 
+    else{
+        return false;
+    }
+}
