@@ -68,7 +68,7 @@ void check_bt_connection(bool stat);
 void Bt_Status(esp_spp_cb_event_t event, esp_spp_cb_param_t* param); /**< Callback function for Bluetooth status */
 
 //############################ SD CARD     ###################################
-void data_logging(float (&acc)[3], float (&acc_slave)[3]); /**< Function to log data */
+void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speed); /**< Function to log data */
 /******************************************************************************
  *                             GLOBAL VARIABLES                             *
  ******************************************************************************/
@@ -169,8 +169,7 @@ void setup()
 
     Serial.println("Creating example.csv...");
     myFile = SD.open("/example.csv", FILE_WRITE);
-    myFile.print(
-        "slave_ax,slave_ay,slave_az,slave_gx,slave_gy,slave_gz,master_ax,master_ay,master_az,master_gx,master_gy,master_gz,angular_velocity,linear_velocity\n");
+    myFile.println("time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave,yaw_diff,pitch_diff,roll_diff,speed");
     myFile.close();
 
     if (SD.exists("/example.csv"))
@@ -182,8 +181,8 @@ void setup()
         Serial.println("example.csv doesn't exist.");
     }
 
-    Serial.println("time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave, yaw_diff, pitch_diff, roll_diff");
-
+    Serial.println(
+        "time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave, yaw_diff, pitch_diff, roll_diff");
 }
 
 
@@ -220,7 +219,8 @@ void loop()
             Serial.printf("The device \"%s\" started in master mode, make sure slave BT device is on!\n",
                           myName.c_str());
             SlaveConnect();
-            Serial.println("time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave, yaw_diff, pitch_diff, roll_diff");
+            Serial.println(
+                "time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave,yaw_diff,pitch_diff,roll_diff,speed");
         }
     }
     if (SerialBT.available())
@@ -230,25 +230,35 @@ void loop()
         ypr[1] = ypr[1] * 180 / M_PI;
         ypr[2] = ypr[2] * 180 / M_PI;
         // Serial.print("ypr\t");
-        Serial.print(millis() - temps);Serial.print(",");
-        Serial.print(ypr[0]);Serial.print(",");
-        Serial.print(ypr[1]);Serial.print(",");
-        Serial.print(ypr[2]);Serial.print(",");
+        Serial.print(millis() - temps);
+        Serial.print(",");
+        Serial.print(ypr[0]);
+        Serial.print(",");
+        Serial.print(ypr[1]);
+        Serial.print(",");
+        Serial.print(ypr[2]);
+        Serial.print(",");
         getSlaveData(ypr_slave);
         ypr_slave[0] = ypr_slave[0] * 180 / M_PI;
         ypr_slave[1] = ypr_slave[1] * 180 / M_PI;
         ypr_slave[2] = ypr_slave[2] * 180 / M_PI;
-        Serial.print(ypr_slave[0]);Serial.print(",");
-        Serial.print(ypr_slave[1]);Serial.print(",");
-        Serial.print(ypr_slave[2]);Serial.print(",");
-        Serial.print(ypr[0] - ypr_slave[0]);Serial.print(",");
-        Serial.print(ypr[1] - ypr_slave[1]);Serial.print(",");
+        Serial.print(ypr_slave[0]);
+        Serial.print(",");
+        Serial.print(ypr_slave[1]);
+        Serial.print(",");
+        Serial.print(ypr_slave[2]);
+        Serial.print(",");
+        Serial.print(ypr[0] - ypr_slave[0]);
+        Serial.print(",");
+        Serial.print(ypr[1] - ypr_slave[1]);
+        Serial.print(",");
         Serial.println(ypr[2] - ypr_slave[2]);
 
-        // double speedKmh = tachymeter.getSpeed() * 3.6;
-        double speedKmh = 10;
+        double speedKmh = tachymeter.getSpeed() * 3.6;
+        // double speedKmh = 10;
         alarmSystem.update(ypr, ypr_slave, speedKmh);
-        // data_logging();
+        float ypr_diff[3] = {ypr[0] - ypr_slave[0], ypr[1] - ypr_slave[1], ypr[2] - ypr_slave[2]};
+        data_logging(ypr, ypr_slave, ypr_diff, speedKmh);
     }
 }
 
@@ -311,26 +321,32 @@ void SlaveConnect()
     SerialBT.connect(address);
 }
 
-void data_logging(float (&acc)[3], float (&acc_slave)[3])
+void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speedKmh)
 {
-    myFile = SD.open("/example.csv", FILE_WRITE);
+    myFile = SD.open("/example.csv", FILE_APPEND);
 
     if (myFile)
     {
         Serial.println("File opened successfully.");
-        // Schema d'une ligne du fichier CSV : master_ax,master_ay,master_az,slave_ax,slave_ay,slave_az
-        myFile.print(acc[0]);
-        myFile.print(",");
-        myFile.print(acc[1]);
-        myFile.print(",");
-        myFile.print(acc[2]);
-        myFile.print(",");
-        myFile.print(acc_slave[0]);
-        myFile.print(",");
-        myFile.print(acc_slave[1]);
-        myFile.print(",");
-        myFile.print(acc_slave[2]);
+        // Schema d'une ligne du fichier CSV : time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave,yaw_diff,pitch_diff,roll_diff,speed
+        // Time
+        myFile.print(millis());myFile.print(",");
+        // Yaw, Pitch, Roll - Master
+        myFile.print(ypr_master[0]);myFile.print(",");
+        myFile.print(ypr_master[1]);myFile.print(",");
+        myFile.print(ypr_master[2]);myFile.print(",");
+        // Yaw, Pitch, Roll - Slave
+        myFile.print(ypr_slave[0]);myFile.print(",");
+        myFile.print(ypr_slave[1]);myFile.print(",");
+        myFile.print(ypr_slave[2]);myFile.print(",");
+        // Yaw, Pitch, Roll - Difference
+        myFile.print(ypr_diff[0]);myFile.print(",");
+        myFile.print(ypr_diff[1]);myFile.print(",");
+        myFile.print(ypr_diff[2]);myFile.print(",");
+        // Speed
+        myFile.print(speedKmh);
         myFile.println();
+        myFile.flush();
         myFile.close();
         Serial.println("File closed.");
     }
