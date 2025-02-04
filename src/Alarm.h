@@ -13,10 +13,10 @@ private :
     int pinLED; // Pin connected to the LED
     int pinBuzzer; // Pin connected to the buzzer
     bool alarmState; // State of the alarm (true = on, false = off)
-    bool silence // Whether the alarm
+    bool silence; // Whether the alarm
     unsigned long initialExceedTime; // Time when the angle start exceeded the threshold
     bool blinkState;
-    unsigned long temps;
+    unsigned long lastBlinkChange;
     double maxAngle; // Maximum angle threshold
     double maxTime; // Maximum time threshold
     double angleAttenuation; // Attenuation factor for the angle
@@ -36,10 +36,10 @@ public:
     * @brief Constructor
     * @param pinBuzzer : Pin connected to the buzzer
     * @param pinLED : Pin connected to the LED
-    * @param maxAngle : Maximum angle threshold
-    * @param maxTime : Maximum time threshold
+    * @param maxAngle : Maximum angle threshold (in degrees)
+    * @param maxTime : Maximum time threshold (in seconds)
     */
-    Alarm(int pinBuzzer, int pinLED, double maxAngle, double maxTime);
+    Alarm(int pinBuzzer, int pinLED, double maxAngle=80, double maxTime=3, double angleAttenuation=0.1, double timeAttenuation=0.1);
 
     /**
     * @brief Initialize the alarm system. Set the buzzer and LED pins as output and turn them off
@@ -54,7 +54,7 @@ public:
      * @param speed speed of the master device in km/h
      * @return true if the alarm is triggered, false otherwise
      */
-    boolean update(float (&ypr)[3], float (&ypr_slave)[3], float speed);
+    boolean update(float (&ypr)[3], float (&ypr_slave)[3], double speed);
 
     /**
      * @brief Get the limits for the angle and time based on the speed, the maximum angle and time, and the attenuation

@@ -10,6 +10,7 @@
    *
    */
 
+#include <Alarm.h>
 #include <Arduino.h>
 #include <SD.h>
 #include "BluetoothSerial.h"
@@ -59,8 +60,7 @@
 /******************************************************************************
  *                         LOCAL FUNCTION PROTOTYPES                          *
  ******************************************************************************/
-// ############################ HALL SENSOR ###################################
-Tachymeter tachymeter(PIN_HAL, PIN_BUZZER, WHEEL_RADIUS, 0.55);
+
 //############################ MPU  SENSOR ###################################
 // Prototypes
 void SlaveConnect(); /**< Function to connect to the slave device */
@@ -69,18 +69,17 @@ void Bt_Status(esp_spp_cb_event_t event, esp_spp_cb_param_t* param); /**< Callba
 
 //############################ SD CARD     ###################################
 void data_logging(float (&acc)[3], float (&acc_slave)[3]); /**< Function to log data */
-void alarm_system(float (&ypr)[3], float (&ypr_slave)[3]); /**< Function to start the alarm system*/
-std::pair<double, double> calculerLimites(double v_kmh, double A_max, double T_max, double k, double k_prime);
-boolean depasserLimites(double angle, double temps, double v_kmh, double A_max, double T_max, double k, double k_prime);
 /******************************************************************************
  *                             GLOBAL VARIABLES                             *
  ******************************************************************************/
+//############################ ALARM ###################################
+Alarm alarmSystem(PIN_BUZZER, PIN_LED, 80, 3, 0.1, 0.1); /**< Alarm object */
 //############################ MPU  SENSOR ###################################
 MPU mpu(INTERRUPT_PIN);
-
 float ypr[3]; // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector
 float ypr_slave[3]; // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector for slave
-
+// ############################ HALL SENSOR ###################################
+Tachymeter tachymeter(PIN_HAL, PIN_BUZZER, WHEEL_RADIUS, 0.55);
 //############################ BLUETOOTH ###################################
 const long interval = 100;
 int ledState = LOW;
@@ -128,25 +127,26 @@ unsigned long temps;
 
 void setup()
 {
+    Serial.begin(115200); //  Sets the data rate in bits per second (baud) for serial data transmission
     Wire.begin();
     //############################ LED and BUZZER Setup ###################################
     pinMode(PIN_LED, OUTPUT);
-    pinMode(PIN_BUZZER, OUTPUT);
+    //############################ ALARM Setup ###################################
+    alarmSystem.init();
     //############################ Tachymeter setup ###################################
     Tachymeter::instance = &tachymeter;
     tachymeter.initialize();
+    //############################ MPU  Setup ###################################
+    mpu.initialize();
+    pinMode(A5, OUTPUT);
+    Serial.println("time,yaw,pitch,roll");
     //############################ BLUETOOTH Setup ################################
     SlaveConnected = false; //  Set the variable false = CLIENT is not connected
-    Serial.begin(115200); //  Sets the data rate in bits per second (baud) for serial data transmission
 
     SerialBT.register_callback(Bt_Status); // Define the Bt_Status callback
     SerialBT.begin(myName, true); //   Starts the bluetooth device as SERVER(Master)
     Serial.printf("The device \"%s\" started in master mode, make sure slave BT device is on!\n", myName.c_str());
     SlaveConnect(); // Connect to the CLIENT(Slave)
-    //############################ MPU  Setup ###################################
-    mpu.initialize();
-    pinMode(A5, OUTPUT);
-    Serial.println("time,yaw,pitch,roll");
     //############################ SD CARD Setup ###################################
     pinMode(CS_PIN, OUTPUT);
 
@@ -181,6 +181,9 @@ void setup()
     {
         Serial.println("example.csv doesn't exist.");
     }
+
+    Serial.println("time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave, yaw_diff, pitch_diff, roll_diff");
+
 }
 
 
@@ -200,11 +203,6 @@ void loop()
     // Tachymeter routine
     tachymeter.update();
 
-
-    float acc[3]; // Tableau contenant les valeurs de l'accélération de master [x, y, z]
-    float gyro[3]; // Tableau contenant les valeurs de l'orientation de master [x, y, z]
-    float acc_slave[3]; // Tableau contenant les valeurs de l'accélération de slave [x, y, z]
-    float gyro_slave[3]; // Tableau contenant les valeurs de l'orientation de slave [x, y, z]
     // Bluetooth - MPU routine
     if (!SlaveConnected)
     {
@@ -222,29 +220,34 @@ void loop()
             Serial.printf("The device \"%s\" started in master mode, make sure slave BT device is on!\n",
                           myName.c_str());
             SlaveConnect();
+            Serial.println("time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave, yaw_diff, pitch_diff, roll_diff");
         }
     }
-
     if (SerialBT.available())
     {
         mpu.getAveragedYPR(ypr);
+        ypr[0] = ypr[0] * 180 / M_PI;
+        ypr[1] = ypr[1] * 180 / M_PI;
+        ypr[2] = ypr[2] * 180 / M_PI;
         // Serial.print("ypr\t");
-        Serial.print(millis() - temps);
-        Serial.print(",");
-        Serial.print(ypr[0] * 180 / M_PI);
-        Serial.print(",");
-        Serial.print(ypr[1] * 180 / M_PI);
-        Serial.print(",");
-        Serial.println(ypr[2] * 180 / M_PI);
+        Serial.print(millis() - temps);Serial.print(",");
+        Serial.print(ypr[0]);Serial.print(",");
+        Serial.print(ypr[1]);Serial.print(",");
+        Serial.print(ypr[2]);Serial.print(",");
         getSlaveData(ypr_slave);
-        Serial.print("slave :");
-        Serial.print(ypr_slave[0] * 180 / M_PI);
-        Serial.print(",");
-        Serial.print(ypr_slave[1] * 180 / M_PI);
-        Serial.print(",");
-        Serial.println(ypr_slave[2] * 180 / M_PI);
+        ypr_slave[0] = ypr_slave[0] * 180 / M_PI;
+        ypr_slave[1] = ypr_slave[1] * 180 / M_PI;
+        ypr_slave[2] = ypr_slave[2] * 180 / M_PI;
+        Serial.print(ypr_slave[0]);Serial.print(",");
+        Serial.print(ypr_slave[1]);Serial.print(",");
+        Serial.print(ypr_slave[2]);Serial.print(",");
+        Serial.print(ypr[0] - ypr_slave[0]);Serial.print(",");
+        Serial.print(ypr[1] - ypr_slave[1]);Serial.print(",");
+        Serial.println(ypr[2] - ypr_slave[2]);
 
-        // alarm_system(ypr, ypr_slave);
+        // double speedKmh = tachymeter.getSpeed() * 3.6;
+        double speedKmh = 10;
+        alarmSystem.update(ypr, ypr_slave, speedKmh);
         // data_logging();
     }
 }
@@ -334,114 +337,5 @@ void data_logging(float (&acc)[3], float (&acc_slave)[3])
     else
     {
         Serial.println("Error opening file.");
-    }
-}
-
-void alarm_system(float (&ypr)[3], float (&ypr_slave)[3])
-{
-    diff_yaw = ypr[0] - ypr_slave[0];
-    diff_pitch = ypr[1] - ypr_slave[1];
-    diff_roll = ypr[2] - ypr_slave[2];
-    if (initial_diff_pitch == 0)
-        initial_diff_pitch = diff_pitch;
-    if (initial_diff_roll == 0)
-        initial_diff_roll = diff_roll;
-    if (initial_diff_yaw == 0)
-        initial_diff_yaw = diff_yaw;
-
-    Serial.print("Angles received : yaw = ");
-    Serial.print(ypr_slave[0]);
-    Serial.print(" pitch = ");
-    Serial.print(ypr_slave[1]);
-    Serial.print(" roll = ");
-    Serial.println(ypr_slave[2]);
-    Serial.print("Diff : yaw = ");
-    Serial.print(diff_yaw);
-    Serial.print(" pitch = ");
-    Serial.print(diff_pitch);
-    Serial.print(" roll = ");
-    Serial.println(diff_roll);
-    Serial.print("Diff acc INIT: yaw = ");
-    Serial.print(initial_diff_yaw);
-    Serial.print(" pitch = ");
-    Serial.print(initial_diff_pitch);
-    Serial.print(" roll = ");
-    Serial.println(initial_diff_roll);
-    Serial.println();
-
-    if ((abs(diff_roll) - abs(initial_diff_roll) > 0.7) || (abs(diff_pitch) - abs(initial_diff_pitch) > 0.7) || (
-        abs(diff_yaw) - abs(initial_diff_yaw) > 0.7))
-    {
-        cpt_second = true;
-        if ((abs(diff_roll) - abs(initial_diff_roll) > 0.7))
-        {
-            Serial.println("yaw");
-        }
-        if ((abs(diff_pitch) - abs(initial_diff_pitch) > 0.7))
-        {
-            Serial.println("pitch");
-        }
-        if ((abs(diff_yaw) - abs(initial_diff_yaw) > 0.7))
-        {
-            Serial.println("roll");
-        }
-    }
-    else
-    {
-        cpt_second = false;
-        digitalWrite(PIN_LED, LOW);
-        // noTone(PIN_BUZZER);
-    }
-
-    // Activation de l'alarme
-    if (cpt_second)
-    {
-        if (millis() - previousMillisLED >= interval)
-        {
-            // save the last time you blinked the LED
-            previousMillisLED = millis();
-
-            // if the LED is off turn it on and vice versa:
-            if (ledState == LOW)
-            {
-                ledState = HIGH;
-                Serial.println("LED ON");
-            }
-            else
-            {
-                ledState = LOW;
-                Serial.println("LED OFF");
-            }
-
-            // set the LED with the ledState of the variable:
-            digitalWrite(PIN_LED, ledState);
-        }
-        // tone(PIN_BUZZER, 500);
-        cpt_second = false;
-    }
-    bufferIndex = 0;
-    memset(receivedBuffer, 0, sizeof(receivedBuffer));
-}
-
-std::pair<double, double> calculerLimites(double v_kmh, double A_max, double T_max, double k, double k_prime)
-{
-    double angle_limits = (A_max * std::exp(-k * v_kmh));
-    double temps_limits = (T_max * std::exp(-k_prime * v_kmh));
-
-    return {angle_limits, temps_limits};
-}
-
-boolean depasserLimites(double angle, double temps, double v_kmh, double A_max, double T_max, double k, double k_prime)
-{
-    std::pair<double, double> limits = calculerLimites(v_kmh, A_max, T_max, k, k_prime);
-    double angle_limits = limits.first;
-    double temps_limits = limits.second;
-    if (angle >= angle_limits && temps >= temps_limits)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
     }
 }
