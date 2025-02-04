@@ -33,6 +33,8 @@ private:
   uint8_t MPUIntStatus; /**< Contient le byte de statut d'interruption réel du MPU */
   int const INTERRUPT_PIN; /**< Définit la broche d'interruption #0 */
   unsigned long temps; /**< Temps actuel en millisecondes */
+  unsigned long tempsCalibration;
+  boolean calibration = true;
   /*------Interrupt detection routine------*/
   static volatile bool MPUInterrupt;     // Indicates whether MPU6050 interrupt pin has gone high
   static void DMPDataReady();
@@ -91,6 +93,8 @@ public:
    * @param ypr Tableau contenant les valeurs des angles d'orientation [yaw, pitch, roll]
    */
   void getAveragedYPR(float (&ypr)[3]);
+
+  boolean calibrationAutomatique();
 
 
 };
