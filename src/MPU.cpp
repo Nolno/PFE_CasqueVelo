@@ -25,6 +25,7 @@ void MPU::initialize() {
         constexpr int loops = 100;
         mpu.CalibrateAccel(loops);
         mpu.CalibrateGyro(loops);
+        tempsCalibration = millis();
         Serial.println("These are the Active offsets: ");
         mpu.PrintActiveOffsets();
         Serial.println(F("Enabling DMP..."));
@@ -60,6 +61,15 @@ void MPU::update() {
         this->ypr[0] = ypr[0];
         this->ypr[1] = ypr[1];
         this->ypr[2] = ypr[2];
+    }
+    if (calibration == true && millis() - tempsCalibration >= 60000) {
+        calibration = calibrationAutomatique();
+        tempsCalibration = millis();
+    }
+    if(calibration == false){
+        calibration = calibrationAutomatique();
+        tempsCalibration = millis();
+
     }
 }
 
@@ -119,4 +129,18 @@ void MPU::getAveragedYPR(float (&ypr)[3]) {
 
 void MPU::DMPDataReady() {
     MPUInterrupt = true;
+}
+
+boolean MPU::calibrationAutomatique() {   
+        float avg_yaw, avg_pitch, avg_roll;
+        getAveragedYPR(avg_yaw, avg_pitch, avg_roll);
+        if (avg_yaw < 5) {
+            constexpr int loops = 50;
+            mpu.CalibrateAccel(loops);
+            mpu.CalibrateGyro(loops);
+            return true;
+    }
+    else{
+        return false;
+    }
 }
