@@ -21,10 +21,9 @@ public:
 
 
     // Méthodes publiques
-
     void initialize();
     void update();
-    float getSpeed() const; // Méthode pour récupérer la vitesse actuelle
+    float getSpeed() const; // Méthode pour récupérer la vitesse actuelle en m/s
 
     // Instance statique pour interruptions
     static Tachymeter *instance;
@@ -39,7 +38,7 @@ private:
     volatile int pulseCounter;
     volatile bool eventFlag;
     unsigned long previousMillis;
-    float currentSpeed; // Stocke la vitesse calculée
+    float currentSpeed; // Stocke la vitesse calculée en m/s
 
     // Méthodes privées
     void pulseEvent();

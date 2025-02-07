@@ -4,18 +4,25 @@
 
 #include "Alarm.h"
 
-Alarm::Alarm(int pinBuzzer, int pinLED, double maxAngle, double maxTime) : pinBuzzer(pinBuzzer), pinLED(pinLED), maxAngle(maxAngle), maxTime(maxTime), alarmState(false), initialExceedTime(0), blinkState(false), angleAttenuation(0.0), timeAttenuation(0.0) {}
+Alarm::Alarm(int pinBuzzer, int pinLED, double maxAngle, double maxTime, double angleAttenuation,
+             double timeAttenuation)
+    : pinBuzzer(pinBuzzer), pinLED(pinLED), maxAngle(maxAngle), maxTime(maxTime), angleAttenuation(angleAttenuation),
+      timeAttenuation(timeAttenuation), alarmState(false), silence(false), initialExceedTime(0), blinkState(false)
+{
+}
 
-
-void Alarm::init() {
-    pinMode(pinBuzzer, OUTPUT); // Set the buzzer pin as output
+void Alarm::init()
+{
     pinMode(pinLED, OUTPUT); // Set the LED pin as output
-
-    digitalWrite(pinBuzzer, LOW); // Turn off the buzzer
+    // pinMode(pinBuzzer, OUTPUT); // Set the buzzer pin as output
+    tone(pinBuzzer, 500);
+    delay(50);
+    noTone(pinBuzzer);
     digitalWrite(pinLED, LOW); // Turn off the LED
 }
 
-boolean Alarm::update(float (&ypr)[3], float (&ypr_slave)[3], float speed) {
+boolean Alarm::update(float (&ypr)[3], float (&ypr_slave)[3], double speed)
+{
     std::pair<double, double> limits = getLimits(speed);
     double limitAngle = limits.first;
     double limitTime = limits.second;
@@ -25,46 +32,68 @@ boolean Alarm::update(float (&ypr)[3], float (&ypr_slave)[3], float speed) {
     double diff_roll = ypr[2] - ypr_slave[2];
 
     // Check if the angle exceeds the threshold
-    if (abs(diff_yaw) > limitAngle) {
-        if (initialExceedTime == 0) {
+    if (abs(diff_yaw) > limitAngle)
+    {
+        if (initialExceedTime == 0)
+        {
             initialExceedTime = millis();
         }
         // Check if the time exceeds the threshold
-        if (millis() - initialExceedTime > limitTime) {
+        if (millis() - initialExceedTime > limitTime * 1000)
+        {
             alarmState = true;
         }
-    } else {
+    }
+    else
+    {
         initialExceedTime = 0;
         alarmState = false;
     }
 
-    if (alarmState) {
+    if (alarmState)
+    {
         start();
         return true;
-    } else {
+    }
+    else
+    {
         stop();
         return false;
     }
 }
 
-std::pair<double, double> Alarm::getLimits(double v_kmh) {
-
-    double limitAngle = (maxAngle * std::exp(angleAttenuation * v_kmh));
-    double limitTime = (maxTime * std::exp(timeAttenuation * v_kmh));
+std::pair<double, double> Alarm::getLimits(double v_kmh)
+{
+    double limitAngle = (maxAngle * std::exp(-(angleAttenuation * v_kmh)));
+    double limitTime = (maxTime * std::exp((-timeAttenuation * v_kmh)));
 
     return std::make_pair(limitAngle, limitTime);
 }
 
-void Alarm::start() {
-    if (blinkState) {
+void Alarm::start()
+{
+    if (!silence)
+    {
+        tone(pinBuzzer, 500);
+    }
+    if (lastBlinkChange == 0 || millis() - lastBlinkChange > 500)
+    {
+        blinkState = !blinkState;
+        lastBlinkChange = millis();
+    }
+    if (blinkState)
+    {
         digitalWrite(pinLED, HIGH);
-    } else {
+    }
+    else
+    {
         digitalWrite(pinLED, LOW);
     }
-    tone(pinBuzzer, 500);
 }
 
-void Alarm::stop() {
+void Alarm::stop()
+{
     digitalWrite(pinLED, LOW);
+    // digitalWrite(pinBuzzer, LOW);
     noTone(pinBuzzer);
 }
