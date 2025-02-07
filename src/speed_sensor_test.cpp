@@ -1,4 +1,4 @@
- #include <Arduino.h>
+/*  #include <Arduino.h>
  #include <SD.h>
  #include "BluetoothSerial.h"
  #include <Adafruit_MPU6050.h>
@@ -13,14 +13,14 @@ int pulse_counter = 0;
 float WEEL_RADIUS = 0.31;
 volatile bool buzzer_flag = false;
 unsigned long previousMillis = 0;
-
+ */
 
 /**
  * @brief
  *  Interrupt handler function, responsible for obtaining average period readings.
  *
 */
-void IRAM_ATTR pulse_event();
+/* void IRAM_ATTR pulse_event();
 
 
 void setup() {
@@ -33,7 +33,7 @@ void setup() {
      * @brief Hall sensor setup
      *
      */
-    pinMode(25, INPUT_PULLUP);
+/*    pinMode(25, INPUT_PULLUP);
     attachInterrupt(25, pulse_event, RISING); //   Enable interruption pin 25 when going from LOW to HIGH.
     pinMode(PIN_BUZZER, OUTPUT);
     previousMillis = millis();
@@ -62,9 +62,11 @@ void loop() {
  *  Interrupt handler function, responsible for obtaining average period readings.
  *
 */
+/*
 void IRAM_ATTR pulse_event()
 {
     pulse_counter++;
     Serial.println(pulse_counter);
     buzzer_flag = true;
 }
+ */

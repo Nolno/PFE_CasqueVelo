@@ -128,6 +128,10 @@ unsigned long temps;
 
 void setup()
 {
+
+    while (!Serial) {}  // Attendre l'initialisation du port série
+    Serial.println("ESP32 prêt !");
+    Serial.begin(115200);
     Wire.begin();
     //############################ LED and BUZZER Setup ###################################
     pinMode(PIN_LED, OUTPUT);
@@ -181,6 +185,7 @@ void setup()
     {
         Serial.println("example.csv doesn't exist.");
     }
+    Serial.println("Setup done!");
 }
 
 
@@ -195,6 +200,7 @@ void getSlaveData(float (&ypr_slave)[3]);
 
 void loop()
 {
+    Serial.println("Test Serial OK !");
     // MPU routine
     mpu.update();
     // Tachymeter routine

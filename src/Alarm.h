@@ -13,7 +13,7 @@ private :
     int pinLED; // Pin connected to the LED
     int pinBuzzer; // Pin connected to the buzzer
     bool alarmState; // State of the alarm (true = on, false = off)
-    bool silence // Whether the alarm
+    bool silence; // Whether the alarm
     unsigned long initialExceedTime; // Time when the angle start exceeded the threshold
     bool blinkState;
     unsigned long temps;
