@@ -54,7 +54,7 @@ public:
      * @param speed speed of the master device in km/h
      * @return true if the alarm is triggered, false otherwise
      */
-    boolean update(float (&ypr)[3], float (&ypr_slave)[3], double speed);
+    boolean update(float (&ypr_diff)[3], double speed);
 
     /**
      * @brief Get the limits for the angle and time based on the speed, the maximum angle and time, and the attenuation

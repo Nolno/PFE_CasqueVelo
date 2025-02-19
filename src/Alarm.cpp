@@ -21,15 +21,15 @@ void Alarm::init()
     digitalWrite(pinLED, LOW); // Turn off the LED
 }
 
-boolean Alarm::update(float (&ypr)[3], float (&ypr_slave)[3], double speed)
+boolean Alarm::update(float (&ypr_diff)[3], double speed)
 {
     std::pair<double, double> limits = getLimits(speed);
     double limitAngle = limits.first;
     double limitTime = limits.second;
-
-    double diff_yaw = ypr[0] - ypr_slave[0];
-    double diff_pitch = ypr[1] - ypr_slave[1];
-    double diff_roll = ypr[2] - ypr_slave[2];
+    Serial.print("Limit angle: "); Serial.print(limitAngle); Serial.print(" Limit time: "); Serial.println(limitTime);
+    double diff_yaw = ypr_diff[0];
+    double diff_pitch = ypr_diff[1];
+    double diff_roll = ypr_diff[2];
 
     // Check if the angle exceeds the threshold
     if (abs(diff_yaw) > limitAngle)
@@ -72,6 +72,7 @@ std::pair<double, double> Alarm::getLimits(double v_kmh)
 
 void Alarm::start()
 {
+    Serial.println("Alarm started");
     if (!silence)
     {
         tone(pinBuzzer, 500);
