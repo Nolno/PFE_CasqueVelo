@@ -104,7 +104,7 @@ void playCalibrationSound();
  * @param alarmState
  *  État de l'alarme (true = alarme activée, false = alarme désactivée)
  */
-void logData(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speed,
+void logData(const float (&ypr_master)[3], const float (&ypr_slave)[3], const float (&ypr_diff)[3], double speed,
              boolean alarmState);
 
 /******************************************************************************
@@ -136,7 +136,7 @@ String myName = "ESP32-BT-Master";
 /**< Variable contenant le nom du périphérique Bluetooth MASTER; juste pour l'impression */
 String slaveName = "ESP32-BT-Slave";
 /**< Variable contenant le nom du périphérique Bluetooth SLAVE; juste pour l'impression */
-String MACadd = "64:B7:08:29:35:72";
+String macAdd = "64:B7:08:29:35:72";
 /**< Variable contenant l'adresse MAC du périphérique Bluetooth SLAVE; juste pour l'impression */
 uint8_t slaveAddress[6] = {0x64, 0xB7, 0x08, 0x29, 0x35, 0x72};
 /**< Variable contenant l'adresse MAC du périphérique Bluetooth SLAVE, utilisée pour la connexion */
@@ -397,7 +397,7 @@ void connectSlave()
         Serial.println("Function BT connection executed");
         Serial.printf("Connecting to slave BT device named \"%s\" and MAC address \"%s\" is started.\n",
                       slaveName.c_str(),
-                      MACadd.c_str());
+                      macAdd.c_str());
         SerialBT.connect(slaveAddress); // Connexion au slave via son adresse MAC
     }
     playBtConnexionSuccessSound(); // Jouer le son de connexion
@@ -409,8 +409,8 @@ void connectSlave()
 }
 
 
-void logData(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speedKmh,
-             boolean alarmState)
+void logData(const float (&ypr_master)[3], const float (&ypr_slave)[3], const float (&ypr_diff)[3], const double speed,
+             const boolean alarmState)
 {
     myFile = SD.open("/example.csv", FILE_APPEND); // Ouvrir le fichier en mode ajout
     if (myFile) // Si le fichier est ouvert avec succès
@@ -421,10 +421,10 @@ void logData(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3]
         dataString += String(ypr_master[0]) + "," + String(ypr_master[1]) + "," + String(ypr_master[2]) + ",";
         dataString += String(ypr_slave[0]) + "," + String(ypr_slave[1]) + "," + String(ypr_slave[2]) + ",";
         dataString += String(ypr_diff[0]) + "," + String(ypr_diff[1]) + "," + String(ypr_diff[2]) + ",";
-        dataString += String(speedKmh) + "," + String(alarmState) + ",";
+        dataString += String(speed) + "," + String(alarmState) + ",";
 
         // Ajouter les limites calculées
-        std::pair<double, double> limits = alarmSystem.getLimits(speedKmh);
+        std::pair<double, double> limits = alarmSystem.getLimits(speed);
         dataString += String(limits.first) + "," + String(limits.second);
 
         // Imprimer la chaîne dans le fichier
@@ -440,7 +440,7 @@ void logData(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3]
                 ypr_master[0], ypr_slave[0], ypr_diff[0],
                 ypr_master[1], ypr_slave[1], ypr_diff[1],
                 ypr_master[2], ypr_slave[2], ypr_diff[2],
-                speedKmh,
+                speed,
                 limits.first, limits.second);
 
         // Imprimer la chaîne formatée dans la console série
@@ -471,7 +471,7 @@ void playCalibrationSound()
 void playBtConnexionSuccessSound()
 {
     // Mélodie de connexion réussie
-    int duration = 125; // Durée de chaque note (en ms)
+    constexpr int duration = 125; // Durée de chaque note (en ms)
 
     tone(PIN_BUZZER, NOTE_E5, duration);
     delay(duration);
