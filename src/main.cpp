@@ -1,12 +1,13 @@
 /**
    * @file main.cpp
-   * @author Victor Alessi
-   * @brief  This is the master device code. Encompasses master bt functionalities,
-   * sd card data formatting and saving, speed sensor readings, and MPU readings
-   * @version 0.1
-   * @date 2024-03-22
+   * @author Antoine Martin
+   * @brief  Code principal du projet, permettant de récupérer les données des capteurs et de les envoyer via Bluetooth.
+   * Inclut également la gestion de l'alarme et de l'enregistrement des données sur la carte SD. Le code doit être
+   * exécuté sur un ESP32 WROOM 32E.
+   * @version 1.0
+   * @date 25/02/2025
    *
-   * @copyright Copyright (c) 2024
+   * @copyright Copyright (c) 2025
    *
    */
 
@@ -25,17 +26,16 @@
  *                                   DEFINES                                  *
  ******************************************************************************/
 
-//############################ HALL SENSOR ###################################
-// Minimum frequency for the tachymeter
+//############################ CAPTEUR A EFFET HAL ###################################
+// Fréquence minimale pour laquelle le capteur à effet Hall est capable de détecter les impulsions
 #define MIN_FREQUENCY                        0.1
-// Conversion factor from seconds to microseconds
+// Facteur de conversion secondes/microsecondes
 #define MICRO_CONSTANT                       1.0E-6
-
-// Wheel radius in meters
+// Rayon de la roue en mètres : A MODIFIER EN FONCTION DE LA ROUE UTILISÉE
 #define WHEEL_RADIUS 0.31
 
 
-// Baudrate for the serial communication
+// Baudrate pour la communication série. Doit être le même que celui configuré dans le platformio.ini
 #define BAUDRATE 115200
 
 //############################ MPU  SENSOR ###################################
@@ -77,13 +77,14 @@ void Bt_Status(esp_spp_cb_event_t event, esp_spp_cb_param_t* param); /**< Callba
 void getSlaveData(float (&ypr_slave)[3]);
 void playTotallySpiesSound();
 //############################ SD CARD     ###################################
-void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speed);
+void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speed,
+                  boolean alarmState);
 /**< Function to log data */
 /******************************************************************************
  *                             GLOBAL VARIABLES                             *
  ******************************************************************************/
 //############################ ALARM ###################################
-Alarm alarmSystem(PIN_BUZZER, PIN_LED, 80, 3, 0.1, 0.1); /**< Alarm object */
+Alarm alarmSystem(PIN_BUZZER, PIN_LED, 70, 3, 0.1, 0.1); /**< Alarm object */
 //############################ MPU  SENSOR ###################################
 MPU mpu(INTERRUPT_PIN);
 float ypr[3]; // [yaw, pitch, roll]   Yaw/Pitch/Roll container and gravity vector
@@ -195,7 +196,7 @@ void setup()
     Serial.println("Creating example.csv...");
     myFile = SD.open("/example.csv", FILE_WRITE);
     myFile.println(
-        "time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave,yaw_diff,pitch_diff,roll_diff,speed,limit_angle,limit_time");
+        "time,yaw_master,pitch_master,roll_master,yaw_slave,pitch_slave,roll_slave,yaw_diff,pitch_diff,roll_diff,speed,alarmState,limit_angle,limit_time");
     myFile.close();
 
     if (SD.exists("/example.csv"))
@@ -307,15 +308,18 @@ void loop()
                 180 - abs(abs(ypr[2] - ypr_slave[2]) - 180)
             };
 
+            boolean alarmState = alarmSystem.update(ypr_diff, speedKmh);
             // Routines
-            alarmSystem.update(ypr_diff, speedKmh);
-            data_logging(ypr, ypr_slave, ypr_diff, speedKmh);
+            data_logging(ypr, ypr_slave, ypr_diff, speedKmh, alarmState);
         }
         else
         {
-            Serial.print("Système non démarré --> Yaw : ");Serial.print(ypr[0]);
-            Serial.print(" Roll : ");Serial.print(ypr[1]);
-            Serial.print(" Pitch : ");Serial.println(ypr[2]);
+            Serial.print("Système non démarré --> Yaw : ");
+            Serial.print(ypr[0]);
+            Serial.print(" Roll : ");
+            Serial.print(ypr[1]);
+            Serial.print(" Pitch : ");
+            Serial.println(ypr[2]);
         }
     }
 }
@@ -413,8 +417,10 @@ void SlaveConnect()
 }
 
 
-void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speedKmh)
+void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_diff)[3], double speedKmh,
+                  boolean alarmState)
 {
+    myFile = SD.open("/example.csv", FILE_APPEND);
     if (myFile)
     {
         // Créer une chaîne de caractères pour stocker les données au format CSV
@@ -423,7 +429,7 @@ void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_dif
         dataString += String(ypr_master[0]) + "," + String(ypr_master[1]) + "," + String(ypr_master[2]) + ",";
         dataString += String(ypr_slave[0]) + "," + String(ypr_slave[1]) + "," + String(ypr_slave[2]) + ",";
         dataString += String(ypr_diff[0]) + "," + String(ypr_diff[1]) + "," + String(ypr_diff[2]) + ",";
-        dataString += String(speedKmh) + ",";
+        dataString += String(speedKmh) + "," + String(alarmState) + ",";
 
         // Ajouter les limites calculées
         std::pair<double, double> limits = alarmSystem.getLimits(speedKmh);
@@ -437,13 +443,13 @@ void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_dif
         // Créer une chaîne de caractères pour l'affichage aligné dans le moniteur série
         char formattedString[512];
         sprintf(formattedString,
-                        "time: %lu YAW --> Master: %7.2f Slave: %7.2f Diff: %7.2f PITCH --> Master: %7.2f Slave: %7.2f Diff: %7.2f ROLL --> Master: %7.2f Slave: %7.2f Diff: %7.2f Speed: %7.2f limit_angle: %7.2f limit_time: %7.2f",
-                        millis(),
-                        ypr_master[0], ypr_slave[0], ypr_diff[0],
-                        ypr_master[1], ypr_slave[1], ypr_diff[1],
-                        ypr_master[2], ypr_slave[2], ypr_diff[2],
-                        speedKmh,
-                        limits.first, limits.second);
+                "time: %lu YAW --> Master: %7.2f Slave: %7.2f Diff: %7.2f PITCH --> Master: %7.2f Slave: %7.2f Diff: %7.2f ROLL --> Master: %7.2f Slave: %7.2f Diff: %7.2f Speed: %7.2f limit_angle: %7.2f limit_time: %7.2f",
+                millis(),
+                ypr_master[0], ypr_slave[0], ypr_diff[0],
+                ypr_master[1], ypr_slave[1], ypr_diff[1],
+                ypr_master[2], ypr_slave[2], ypr_diff[2],
+                speedKmh,
+                limits.first, limits.second);
 
         // Imprimer la chaîne formatée dans la console série
         Serial.println(formattedString);
@@ -452,7 +458,6 @@ void data_logging(float (&ypr_master)[3], float (&ypr_slave)[3], float (&ypr_dif
     {
         Serial.println("Error opening file.");
     }
-    myFile = SD.open("/example.csv", FILE_APPEND);
 }
 
 
