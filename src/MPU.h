@@ -23,29 +23,29 @@ private:
     Adafruit_ICM20948 icm; /**< Objet pour la gestion du MPU */
     // Angles d'orientation
     float ypr[3]; /**< Tableau pour stocker les valeurs des angles d'orientation [yaw, pitch, roll] */
-    float yaw_buffer[BUFFER_SIZE]; /**< Buffer pour stocker les valeurs de l'angle de lacet */
-    float pitch_buffer[BUFFER_SIZE]; /**< Buffer pour stocker les valeurs de l'angle de tangage */
-    float roll_buffer[BUFFER_SIZE]; /**< Buffer pour stocker les valeurs de l'angle de roulis */
-    int buffer_index;  /**< Index actuel dans le buffer */
-    bool buffer_full;  /**< Indique si on a rempli au moins x valeurs */
+    float yawBuffer[BUFFER_SIZE]; /**< Buffer pour stocker les valeurs de l'angle de lacet */
+    float pitchBuffer[BUFFER_SIZE]; /**< Buffer pour stocker les valeurs de l'angle de tangage */
+    float rollBuffer[BUFFER_SIZE]; /**< Buffer pour stocker les valeurs de l'angle de roulis */
+    int bufferIndex;  /**< Index actuel dans le buffer */
+    bool bufferFull;  /**< Indique si on a rempli au moins x valeurs */
 
     // Variables pour la calibration
     unsigned long startTime; /**< Temps de démarrage de la calibration */
     // Variables de calibration
-    float mag_min_x = 1000, mag_max_x = -1000; // Valeurs min et max pour l'axe X
-    float mag_min_y = 1000, mag_max_y = -1000; // Valeurs min et max pour l'axe Y
-    float mag_min_z = 1000, mag_max_z = -1000; // Valeurs min et max pour l'axe Z
+    float magMinX = 1000, magMaxX = -1000; // Valeurs min et max pour l'axe X
+    float magMinY = 1000, magMaxY = -1000; // Valeurs min et max pour l'axe Y
+    float magMinZ = 1000, magMaxZ = -1000; // Valeurs min et max pour l'axe Z
 
-    float mag_offset_x = 0, mag_offset_y = 0, mag_offset_z = 0; // Offset pour chaque axe
-    float mag_scale_x = 1, mag_scale_y = 1, mag_scale_z = 1; // Facteur d'échelle pour chaque axe
+    float magOffsetX = 0, magOffsetY = 0, magOffsetZ = 0; // Offset pour chaque axe
+    float magScaleX = 1, magScaleY = 1, magScaleZ = 1; // Facteur d'échelle pour chaque axe
 
     // Variables pour le Filtre de Kalman
-    float kalman_yaw = 0;  // Estimation du Yaw
-    float kalman_error = 4; // Erreur estimée initiale
-    float kalman_gain = 0.5;  // Gain de Kalman
-    float sensor_error = 2; // Bruit de mesure (ajuste si nécessaire)
+    float kalmanYaw = 0;  // Estimation du Yaw
+    float kalmanError = 4; // Erreur estimée initiale
+    float kalmanGain = 0.5;  // Gain de Kalman
+    float sensorError = 2; // Bruit de mesure (ajuste si nécessaire)
 
-    float correction_factor=0.5; // Facteur de correction pour la moyenne
+    float correctionFactor=0.5; // Facteur de correction pour la moyenne
 
     unsigned long temps; /**< Temps actuel en millisecondes */
 
@@ -66,7 +66,7 @@ private:
      * @param b Deuxième angle.
      * @return Différence entre les deux angles.
      */
-    float angleDifference(float a, float b);
+    static float getAngleDifference(float a, float b);
 public:
     /**
     * @brief Constructeur de la classe MPU.
@@ -86,22 +86,22 @@ public:
     /**
     * @brief Méthode pour récupérer la valeur de l'angle de lacet.
     */
-    float getYaw();
+    float getYaw() const;
 
     /**
     * @brief Méthode pour récupérer la valeur de l'angle de tangage.
     */
-    float getPitch();
+    float getPitch() const;
 
     /**
     * @brief Méthode pour récupérer la valeur de l'angle de roulis.
     */
-    float getRoll();
+    float getRoll() const;
 
     /**
     * @brief Méthode pour récupérer les valeurs des angles d'orientation (yaw, pitch, roll) en degrés.
     */
-    void getYPR(float (&ypr)[3]);
+    void getYPR(float (&ypr)[3]) const;
 
     /**
     * @brief Méthode pour obtenir les valeurs moyennes des angles d'orientation en degrés.
@@ -109,13 +109,13 @@ public:
     * @param avg_pitch Valeur moyenne de l'angle de tangage.
     * @param avg_roll Valeur moyenne de l'angle de roulis.
     */
-    void getAveragedYPR(float &avg_yaw, float &avg_pitch, float &avg_roll);
+    void getAveragedYPR(float &avg_yaw, float &avg_pitch, float &avg_roll) const;
 
     /**
      * @brief Méthode pour obtenir les valeurs moyennes des angles d'orientation en degrés.
      * @param ypr Tableau contenant les valeurs des angles d'orientation [yaw, pitch, roll]
      */
-    void getAveragedYPR(float (&ypr)[3]);
+    void getAveragedYPR(float (&ypr)[3]) const;
 };
 
 #endif //MPU_H

@@ -1,8 +1,8 @@
 #include "MPU.h"
 
 // Constructeur de la classe MPU - Initialisation des variables
-MPU::MPU() : ypr{}, yaw_buffer{}, pitch_buffer{}, roll_buffer{}, buffer_index(0),
-                             buffer_full(false), startTime(0), temps(0)
+MPU::MPU() : ypr{}, yawBuffer{}, pitchBuffer{}, rollBuffer{}, bufferIndex(0),
+                             bufferFull(false), startTime(0), temps(0)
 {
 }
 
@@ -30,35 +30,35 @@ void MPU::initialize()
         if (millis() - startTime < 30000) // Calibrer pendant 30 secondes
         {
             // Trouver les valeurs min et max pour chaque axe
-            mag_min_x = min(mag_min_x, mag.magnetic.x);
-            mag_max_x = max(mag_max_x, mag.magnetic.x);
-            mag_min_y = min(mag_min_y, mag.magnetic.y);
-            mag_max_y = max(mag_max_y, mag.magnetic.y);
-            mag_min_z = min(mag_min_z, mag.magnetic.z);
-            mag_max_z = max(mag_max_z, mag.magnetic.z);
+            magMinX = min(magMinX, mag.magnetic.x);
+            magMaxX = max(magMaxX, mag.magnetic.x);
+            magMinY = min(magMinY, mag.magnetic.y);
+            magMaxY = max(magMaxY, mag.magnetic.y);
+            magMinZ = min(magMinZ, mag.magnetic.z);
+            magMaxZ = max(magMaxZ, mag.magnetic.z);
         }
         else
         {// Calculer l'offset et le facteur d'échelle à la fin de la calibration
-            mag_offset_x = (mag_max_x + mag_min_x) / 2;
-            mag_offset_y = (mag_max_y + mag_min_y) / 2;
-            mag_offset_z = (mag_max_z + mag_min_z) / 2;
+            magOffsetX = (magMaxX + magMinX) / 2;
+            magOffsetY = (magMaxY + magMinY) / 2;
+            magOffsetZ = (magMaxZ + magMinZ) / 2;
 
-            mag_scale_x = (mag_max_x - mag_min_x) / 2;
-            mag_scale_y = (mag_max_y - mag_min_y) / 2;
-            mag_scale_z = (mag_max_z - mag_min_z) / 2;
+            magScaleX = (magMaxX - magMinX) / 2;
+            magScaleY = (magMaxY - magMinY) / 2;
+            magScaleZ = (magMaxZ - magMinZ) / 2;
 
             Serial.print("Offset: ");
-            Serial.print(mag_offset_x);
+            Serial.print(magOffsetX);
             Serial.print(", ");
-            Serial.print(mag_offset_y);
+            Serial.print(magOffsetY);
             Serial.print(", ");
-            Serial.println(mag_offset_z);
+            Serial.println(magOffsetZ);
             Serial.print("Scale: ");
-            Serial.print(mag_scale_x);
+            Serial.print(magScaleX);
             Serial.print(", ");
-            Serial.print(mag_scale_y);
+            Serial.print(magScaleY);
             Serial.print(", ");
-            Serial.println(mag_scale_z);
+            Serial.println(magScaleZ);
 
             Serial.println("Calibration terminée !");
             isCalibrating = false;
@@ -74,9 +74,9 @@ void MPU::update()
     icm.getEvent(&accel, &gyro, &temp, &mag);
 
     // Lecture des données du magnétomètre
-    float mag_x = (mag.magnetic.x - mag_offset_x) / mag_scale_x;
-    float mag_y = (mag.magnetic.y - mag_offset_y) / mag_scale_y;
-    float mag_z = (mag.magnetic.z - mag_offset_z) / mag_scale_z;
+    float mag_x = (mag.magnetic.x - magOffsetX) / magScaleX;
+    float mag_y = (mag.magnetic.y - magOffsetY) / magScaleY;
+    float mag_z = (mag.magnetic.z - magOffsetZ) / magScaleZ;
     // Serial.print("Mag: "); Serial.print(mag_x); Serial.print(", "); Serial.print(mag_y); Serial.print(", "); Serial.println(mag_z);
 
     // Lecture des données de l'accéléromètre
@@ -115,7 +115,7 @@ void MPU::update()
     this->ypr[2] = roll;
 }
 
-float MPU::angleDifference(float a, float b) {
+float MPU::getAngleDifference(float a, float b) {
     float diff = fmod(b - a, 360); // Calcul de la différence brute
     if (diff < -180) diff += 360; // Ajustement si trop négatif
     if (diff > 180) diff -= 360; // Ajustement si trop positif
@@ -125,50 +125,50 @@ float MPU::angleDifference(float a, float b) {
 float MPU::applyKalmanFilter(float measured_yaw)
 {
     // Étape 1 : Calcul du Gain de Kalman
-    kalman_gain = kalman_error / (kalman_error + sensor_error);
+    kalmanGain = kalmanError / (kalmanError + sensorError);
 
     // Étape 2 : Correction cyclique
-    float difference = angleDifference(kalman_yaw, measured_yaw);
+    float difference = getAngleDifference(kalmanYaw, measured_yaw);
     Serial.println(difference);
 
     // Appliquer un boost si la variation est importante
     if (abs(difference) > 10)
     {
-        kalman_yaw += difference * correction_factor;
+        kalmanYaw += difference * correctionFactor;
     }
     else
     {
-        kalman_yaw += kalman_gain * difference;
+        kalmanYaw += kalmanGain * difference;
     }
 
     // Normalisation pour rester entre 0° et 360°
-    kalman_yaw = fmod(kalman_yaw + 360, 360);
+    kalmanYaw = fmod(kalmanYaw + 360, 360);
 
     // Étape 3 : Mise à jour de l'incertitude
-    kalman_error = (1 - kalman_gain) * kalman_error;
+    kalmanError = (1 - kalmanGain) * kalmanError;
 
-    return kalman_yaw;
+    return kalmanYaw;
 }
 
 
 
 // Accesseurs pour les angles d'Euler
-float MPU::getYaw()
+float MPU::getYaw() const
 {
     return ypr[0];
 }
 
-float MPU::getPitch()
+float MPU::getPitch() const
 {
     return ypr[1];
 }
 
-float MPU::getRoll()
+float MPU::getRoll() const
 {
     return ypr[2];
 }
 
-void MPU::getYPR(float (&ypr)[3])
+void MPU::getYPR(float (&ypr)[3]) const
 {
     ypr[0] = this->ypr[0];
     ypr[1] = this->ypr[1];
@@ -179,20 +179,20 @@ void MPU::getYPR(float (&ypr)[3])
 void MPU::addSample(float new_yaw, float new_pitch, float new_roll)
 {
     // Ajouter les valeurs dans le buffer
-    yaw_buffer[buffer_index] = new_yaw;
-    pitch_buffer[buffer_index] = new_pitch;
-    roll_buffer[buffer_index] = new_roll;
+    yawBuffer[bufferIndex] = new_yaw;
+    pitchBuffer[bufferIndex] = new_pitch;
+    rollBuffer[bufferIndex] = new_roll;
     // Incrémenter l'index
-    buffer_index = (buffer_index + 1) % BUFFER_SIZE;
+    bufferIndex = (bufferIndex + 1) % BUFFER_SIZE;
     // Vérifier si le buffer est plein
-    if (buffer_index == 0) buffer_full = true;
+    if (bufferIndex == 0) bufferFull = true;
 }
 
 
-void MPU::getAveragedYPR(float& avg_yaw, float& avg_pitch, float& avg_roll)
+void MPU::getAveragedYPR(float& avg_yaw, float& avg_pitch, float& avg_roll) const
 {
     // Si le buffer n'est pas plein, on renvoie les valeurs brutes
-    if (!buffer_full)
+    if (!bufferFull)
     {
         float local_ypr[3];
         getYPR(local_ypr);
@@ -209,9 +209,9 @@ void MPU::getAveragedYPR(float& avg_yaw, float& avg_pitch, float& avg_roll)
     for (int i = 0; i < BUFFER_SIZE; i++) // Parcourir le buffer
     {
         // Somme des valeurs
-        sum_yaw += yaw_buffer[i];
-        sum_pitch += pitch_buffer[i];
-        sum_roll += roll_buffer[i];
+        sum_yaw += yawBuffer[i];
+        sum_pitch += pitchBuffer[i];
+        sum_roll += rollBuffer[i];
     }
     // Calcul de la moyenne
     avg_yaw = sum_yaw / BUFFER_SIZE;
@@ -220,7 +220,7 @@ void MPU::getAveragedYPR(float& avg_yaw, float& avg_pitch, float& avg_roll)
     // Serial.print("Yaw: "); Serial.print(avg_yaw); Serial.print("\tPitch: "); Serial.print(avg_pitch); Serial.print("\tRoll: "); Serial.println(avg_roll);
 }
 
-void MPU::getAveragedYPR(float (&ypr)[3])
+void MPU::getAveragedYPR(float (&ypr)[3]) const
 {   // Surcharge de la méthode pour renvoyer les valeurs dans un tableau
     float avg_yaw, avg_pitch, avg_roll;
     getAveragedYPR(avg_yaw, avg_pitch, avg_roll);
