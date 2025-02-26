@@ -4,57 +4,74 @@
 
 #include "Alarm.h"
 
-Alarm::Alarm(int pinBuzzer, int pinLED, double maxAngle, double maxTime, double angleAttenuation,
-             double timeAttenuation)
-    : pinBuzzer(pinBuzzer), pinLED(pinLED), maxAngle(maxAngle), maxTime(maxTime), angleAttenuation(angleAttenuation),
-      timeAttenuation(timeAttenuation), alarmState(false), silence(false), initialExceedTime(0), blinkState(false)
+Alarm::Alarm(const int pinBuzzer, const int pinLED, const double maxAngle, const double maxTime,
+             const double angleAttenuation,
+             const double timeAttenuation)
+    : pinLED(pinLED), pinBuzzer(pinBuzzer), alarmState(false), silence(false), initialExceedTime(0),
+      blinkState(false), lastBlinkChange(0), maxAngle(maxAngle), maxTime(maxTime),
+      angleAttenuation(angleAttenuation), timeAttenuation(timeAttenuation)
 {
 }
 
-void Alarm::init()
+void Alarm::init() const
 {
-    pinMode(pinLED, OUTPUT); // Set the LED pin as output
-    // pinMode(pinBuzzer, OUTPUT); // Set the buzzer pin as output
+    pinMode(pinLED, OUTPUT); // Configure le pin de la LED en sortie
+    // pinMode(pinBuzzer, OUTPUT); // Configure le pin du buzzer en sortie
+
+    // Buzzer test
     tone(pinBuzzer, 500);
     delay(50);
     noTone(pinBuzzer);
-    digitalWrite(pinLED, LOW); // Turn off the LED
+
+    // Initialise la LED état bas (éteinte)
+    digitalWrite(pinLED, LOW);
 }
 
-boolean Alarm::update(float (&ypr_diff)[3], double speed)
+boolean Alarm::update(const float (&ypr_diff)[3], const double speed)
 {
-    std::pair<double, double> limits = getLimits(speed);
-    double limitAngle = limits.first;
-    double limitTime = limits.second;
-    Serial.print("Limit angle: "); Serial.print(limitAngle); Serial.print(" Limit time: "); Serial.println(limitTime);
-    double diff_yaw = ypr_diff[0];
-    double diff_pitch = ypr_diff[1];
-    double diff_roll = ypr_diff[2];
+    // Récupère les limites en fonction de la vitesse
+    const std::pair<double, double> limits = getLimits(speed);
+    const double limitAngle = limits.first;
+    const double limitTime = limits.second;
+    // Serial.print("Limit angle: "); Serial.print(limitAngle); Serial.print(" Limit time: "); Serial.println(limitTime);
 
-    // Check if the angle exceeds the threshold
-    if (abs(diff_yaw) > limitAngle)
+    // Récupère les différences d'angles
+    const double diffYaw = ypr_diff[0];
+    // REMARQUE : Les angles de tangage et de roulis ne sont pas utilisés pour le moment
+    // double diffPitch = ypr_diff[1];
+    // double diffRoll = ypr_diff[2];
+
+    // On vérifie si l'angle actuel dépasse la limite
+    if (abs(diffYaw) > limitAngle)
     {
+        // Si le temps de dépassement est nul (l'angle n'était pas dépassé au temps t-1)
         if (initialExceedTime == 0)
         {
+            // On enregistre le temps actuel comme temps initial de dépassement
             initialExceedTime = millis();
         }
-        // Check if the time exceeds the threshold
+        // Si le temps de dépassement est supérieur au temps limite
         if (millis() - initialExceedTime > limitTime * 1000)
         {
+            // On déclenche l'alarme
             alarmState = true;
         }
     }
     else
     {
+        // Si l'angle n'est plus dépassé, on réinitialise le temps de dépassement
         initialExceedTime = 0;
+        // On arrête l'alarme
         alarmState = false;
     }
 
+    // Si l'alarme est déclenchée, on la démarre
     if (alarmState)
     {
         start();
         return true;
     }
+    // Sinon, on l'arrête
     else
     {
         stop();
@@ -62,21 +79,27 @@ boolean Alarm::update(float (&ypr_diff)[3], double speed)
     }
 }
 
-std::pair<double, double> Alarm::getLimits(double v_kmh)
+std::pair<double, double> Alarm::getLimits(const double v_kmh) const
 {
+    // Calcul des limites d'angle et de temps en fonction de la vitesse : fonction exponentielle décroissante
     double limitAngle = (maxAngle * std::exp(-(angleAttenuation * v_kmh)));
     double limitTime = (maxTime * std::exp((-timeAttenuation * v_kmh)));
 
+    // Retourne les limites
     return std::make_pair(limitAngle, limitTime);
 }
 
 void Alarm::start()
 {
     Serial.println("Alarm started");
+    // Si l'alarme n'est pas en mode silence
     if (!silence)
     {
+        // Active le buzzer
         tone(pinBuzzer, 500);
     }
+
+    // Clignotement de la LED toutes les 500ms
     if (lastBlinkChange == 0 || millis() - lastBlinkChange > 500)
     {
         blinkState = !blinkState;
@@ -92,9 +115,9 @@ void Alarm::start()
     }
 }
 
-void Alarm::stop()
+void Alarm::stop() const
 {
+    // On coupe le buzzer et on éteint la LED
     digitalWrite(pinLED, LOW);
-    // digitalWrite(pinBuzzer, LOW);
     noTone(pinBuzzer);
 }
