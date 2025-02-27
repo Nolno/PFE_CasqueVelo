@@ -10,7 +10,7 @@
  */
 #ifndef MPU_H
 #define MPU_H
-#define BUFFER_SIZE 50
+#define BUFFER_SIZE 25 /**< Taille du buffer pour la moyenne des angles d'orientation */
 
 #include <Arduino.h>
 #include <Adafruit_ICM20948.h>
@@ -44,6 +44,8 @@ private:
     float kalmanError = 4; // Erreur estimée initiale
     float kalmanGain = 0.5;  // Gain de Kalman
     float sensorError = 2; // Bruit de mesure (ajuste si nécessaire)
+    float kalmanX = 0;
+    float kalmanY = 0;
 
     float correctionFactor=0.5; // Facteur de correction pour la moyenne
 

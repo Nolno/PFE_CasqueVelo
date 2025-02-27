@@ -21,11 +21,11 @@ void MPU::initialize()
     startTime = millis();
     Serial.println("Début de la calibration du magnétomètre...");
 
+    sensors_event_t accel, gyro, mag, temp;
     bool isCalibrating = true;
     while (isCalibrating)
     {
         // Récupérer les données du MPU (accéléromètre, gyroscope, magnétomètre, température)
-        sensors_event_t accel, gyro, mag, temp;
         icm.getEvent(&accel, &gyro, &temp, &mag);
         if (millis() - startTime < 30000) // Calibrer pendant 30 secondes
         {
@@ -64,6 +64,39 @@ void MPU::initialize()
             isCalibrating = false;
         }
     }
+    // Initialisation du filtre de Kalman
+    icm.getEvent(&accel, &gyro, &temp, &mag);
+
+    // Lecture des données du magnétomètre
+    float mag_x = (mag.magnetic.x - magOffsetX) / magScaleX;
+    float mag_y = (mag.magnetic.y - magOffsetY) / magScaleY;
+    float mag_z = (mag.magnetic.z - magOffsetZ) / magScaleZ;
+    // Serial.print("Mag: "); Serial.print(mag_x); Serial.print(", "); Serial.print(mag_y); Serial.print(", "); Serial.println(mag_z);
+
+    // Lecture des données de l'accéléromètre
+    float a_x = accel.acceleration.x;
+    float a_y = accel.acceleration.y;
+    float a_z = accel.acceleration.z;
+
+    // Calcul des angles d'Euler (Roll, Pitch, Yaw)
+    float roll = atan2(a_y, a_z) * RAD_TO_DEG;
+    float pitch = atan2(-a_x, sqrt(a_y * a_y + a_z * a_z)) * RAD_TO_DEG;
+
+    // Calcul de l'angle de lacet (Yaw) à partir du magnétomètre (avec compensation des angles de tangage et de roulis)
+    float X_h = mag_x * cos(pitch * (M_PI / 180)) +
+        mag_y * sin(roll * (M_PI / 180)) * sin(pitch * (M_PI / 180)) +
+        mag_z * cos(roll * (M_PI / 180)) * sin(pitch * (M_PI / 180));
+
+    float Y_h = mag_y * cos(roll * (M_PI / 180)) -
+        mag_z * sin(roll * (M_PI / 180));
+
+    float yaw = atan2(-Y_h, X_h) * RAD_TO_DEG;
+    yaw = yaw + 180; // Correction pour avoir [0, 360°]
+    float initialYaw = yaw;
+    kalmanYaw = initialYaw;
+    kalmanX = cos(initialYaw * DEG_TO_RAD);
+    kalmanY = sin(initialYaw * DEG_TO_RAD);
+
 }
 
 // Routine de mise à jour du MPU - Doit être appelée régulièrement dans la boucle principale (loop)
@@ -124,32 +157,46 @@ float MPU::getAngleDifference(float a, float b) {
 
 float MPU::applyKalmanFilter(float measured_yaw)
 {
-    // Étape 1 : Calcul du Gain de Kalman
+    // Étape 1 : Conversion de l'angle mesuré en coordonnées cartésiennes
+    float measuredX = cos(measured_yaw * DEG_TO_RAD);
+    float measuredY = sin(measured_yaw * DEG_TO_RAD);
+
+    // Étape 2 : Estimation de l'angle actuel pour comparer
+    float predictedYaw = atan2(kalmanY, kalmanX) * RAD_TO_DEG;
+    float difference = getAngleDifference(predictedYaw, measured_yaw);
+
+    // Boost de réactivité si le changement est important
+    if (abs(difference) > 5) {
+        kalmanGain *= 1.5;
+    }
+
+    // Étape 3 : Régulation des erreurs pour éviter une dérive excessive
+    sensorError = max(sensorError * 0.9, 0.1);
+    kalmanError = min(kalmanError * 1.1, 10.0);
+
+    // Calcul du Gain de Kalman
     kalmanGain = kalmanError / (kalmanError + sensorError);
 
-    // Étape 2 : Correction cyclique
-    float difference = getAngleDifference(kalmanYaw, measured_yaw);
-    Serial.println(difference);
+    // Étape 4 : Mise à jour en X et Y
+    kalmanX += kalmanGain * (measuredX - kalmanX);
+    kalmanY += kalmanGain * (measuredY - kalmanY);
 
-    // Appliquer un boost si la variation est importante
-    if (abs(difference) > 10)
-    {
-        kalmanYaw += difference * correctionFactor;
-    }
-    else
-    {
-        kalmanYaw += kalmanGain * difference;
-    }
+    // Étape 5 : Normalisation
+    float norm = sqrt(kalmanX * kalmanX + kalmanY * kalmanY);
+    kalmanX /= norm;
+    kalmanY /= norm;
 
+    // Étape 6 : Conversion en angle filtré
+    kalmanYaw = atan2(kalmanY, kalmanX) * RAD_TO_DEG;
+    if (kalmanYaw < 0) kalmanYaw += 360;
 
-    // Normalisation pour rester entre 0° et 360°
-    kalmanYaw = fmod(kalmanYaw + 360, 360);
-
-    // Étape 3 : Mise à jour de l'incertitude
+    // Étape 7 : Mise à jour de l'incertitude
     kalmanError = (1 - kalmanGain) * kalmanError;
 
     return kalmanYaw;
 }
+
+
 
 
 
