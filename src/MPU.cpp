@@ -141,6 +141,7 @@ float MPU::applyKalmanFilter(float measured_yaw)
         kalmanYaw += kalmanGain * difference;
     }
 
+
     // Normalisation pour rester entre 0° et 360°
     kalmanYaw = fmod(kalmanYaw + 360, 360);
 
