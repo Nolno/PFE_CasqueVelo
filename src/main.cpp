@@ -184,6 +184,7 @@ void setup()
     //############################ INITIALISATION DE L'ALARME ###################################
     alarmSystem.init(); //  Initialisation de l'alarme
     //############################ INITIALISATION DU TACHYMÈTRE ###################################
+    Tachymeter::instance = &tachymeter;
     tachymeter.initialize(); //  Initialisation du tachymètre
     //############################ INITIALISATION DU MPU ###################################
     mpu.initialize(); //  Initialisation du MPU - Inclut la calibration
@@ -253,7 +254,7 @@ void loop()
         mpu.getAveragedYPR(ypr); // Récupérer les angles de l'orientation du master
         getSlaveData(yprSlave); // Récupérer les angles de l'orientation du slave
         double speedKmh = tachymeter.getSpeed() * 3.6; // Récupérer la vitesse en km/h
-        speedKmh = 15; // Vitesse simulée pour les tests, on remplace la vitesse réelle par x km/h
+        // speedKmh = 15; // Vitesse simulée pour les tests, on remplace la vitesse réelle par x km/h
 
         // Lit l'état du bouton - Le système démarre lorsque le bouton est pressé, les angles sont mis à zéro
         buttonState = digitalRead(buttonPin);

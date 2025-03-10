@@ -19,7 +19,7 @@ void setup()
     }
     Serial.println("Initialization done.");
     // On créé un fichier "test.txt" sur la carte SD
-    myFile = SD.open("test.txt", FILE_WRITE);
+    myFile = SD.open("/test.txt", FILE_WRITE);
     if (myFile)
     {
         // Si le fichier est ouvert, on écrit une chaîne de caractères
@@ -38,7 +38,7 @@ void setup()
 void loop()
 {
     // On ouvre le fichier "test.txt" en mode écriture
-    myFile = SD.open("test.txt", FILE_WRITE);
+    myFile = SD.open("/test.txt", FILE_WRITE);
     if (myFile)
     {
         // Si le fichier est ouvert, on écrit une chaîne de caractères
